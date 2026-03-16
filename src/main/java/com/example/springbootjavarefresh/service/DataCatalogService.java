@@ -48,6 +48,9 @@ public class DataCatalogService {
         product.setCurrency(request.getCurrency());
         product.setAccessType(request.getAccessType());
         product.setBillingInterval(request.getBillingInterval());
+        product.setBatchDownloadLimitMb(request.getBatchDownloadLimitMb());
+        product.setRealtimeSubscriptionLimit(request.getRealtimeSubscriptionLimit());
+        product.setMaxRealtimePayloadKb(request.getMaxRealtimePayloadKb());
         return dataProductRepository.save(product);
     }
 }

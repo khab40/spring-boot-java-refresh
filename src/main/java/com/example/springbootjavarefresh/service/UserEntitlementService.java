@@ -7,6 +7,7 @@ import com.example.springbootjavarefresh.entity.UserEntitlement;
 import com.example.springbootjavarefresh.repository.UserEntitlementRepository;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -34,6 +35,15 @@ public class UserEntitlementService {
         entitlement.setStatus(EntitlementStatus.ACTIVE);
         entitlement.setGrantedAt(LocalDateTime.now());
         entitlement.setSourceTransactionId(transaction.getId());
+        if (entitlement.getBatchDownloadUsedMb() == null) {
+            entitlement.setBatchDownloadUsedMb(BigDecimal.ZERO);
+        }
+        if (entitlement.getRealtimeSubscriptionsUsed() == null) {
+            entitlement.setRealtimeSubscriptionsUsed(0);
+        }
+        if (entitlement.getPayloadKilobytesUsed() == null) {
+            entitlement.setPayloadKilobytesUsed(0L);
+        }
 
         if (transaction.getProduct().getBillingInterval() == BillingInterval.MONTHLY) {
             entitlement.setExpiresAt(LocalDateTime.now().plusMonths(1));

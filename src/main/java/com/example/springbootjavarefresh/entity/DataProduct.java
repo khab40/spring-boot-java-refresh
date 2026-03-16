@@ -50,6 +50,15 @@ public class DataProduct {
     @Column(name = "billing_interval", nullable = false)
     private BillingInterval billingInterval = BillingInterval.ONE_TIME;
 
+    @Column(name = "batch_download_limit_mb", precision = 12, scale = 2)
+    private BigDecimal batchDownloadLimitMb;
+
+    @Column(name = "realtime_subscription_limit")
+    private Integer realtimeSubscriptionLimit;
+
+    @Column(name = "max_realtime_payload_kb")
+    private Integer maxRealtimePayloadKb;
+
     @Column(name = "active", nullable = false)
     private Boolean active = true;
 
@@ -139,6 +148,30 @@ public class DataProduct {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public BigDecimal getBatchDownloadLimitMb() {
+        return batchDownloadLimitMb;
+    }
+
+    public void setBatchDownloadLimitMb(BigDecimal batchDownloadLimitMb) {
+        this.batchDownloadLimitMb = batchDownloadLimitMb;
+    }
+
+    public Integer getRealtimeSubscriptionLimit() {
+        return realtimeSubscriptionLimit;
+    }
+
+    public void setRealtimeSubscriptionLimit(Integer realtimeSubscriptionLimit) {
+        this.realtimeSubscriptionLimit = realtimeSubscriptionLimit;
+    }
+
+    public Integer getMaxRealtimePayloadKb() {
+        return maxRealtimePayloadKb;
+    }
+
+    public void setMaxRealtimePayloadKb(Integer maxRealtimePayloadKb) {
+        this.maxRealtimePayloadKb = maxRealtimePayloadKb;
     }
 
     public LocalDateTime getCreatedAt() {

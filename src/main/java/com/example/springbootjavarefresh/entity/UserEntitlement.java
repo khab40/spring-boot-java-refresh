@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -48,10 +49,28 @@ public class UserEntitlement {
     @Column(name = "source_transaction_id")
     private Long sourceTransactionId;
 
+    @Column(name = "batch_download_used_mb", nullable = false, precision = 12, scale = 2)
+    private BigDecimal batchDownloadUsedMb = BigDecimal.ZERO;
+
+    @Column(name = "realtime_subscriptions_used", nullable = false)
+    private Integer realtimeSubscriptionsUsed = 0;
+
+    @Column(name = "payload_kilobytes_used", nullable = false)
+    private Long payloadKilobytesUsed = 0L;
+
     @PrePersist
     protected void onCreate() {
         if (grantedAt == null) {
             grantedAt = LocalDateTime.now();
+        }
+        if (batchDownloadUsedMb == null) {
+            batchDownloadUsedMb = BigDecimal.ZERO;
+        }
+        if (realtimeSubscriptionsUsed == null) {
+            realtimeSubscriptionsUsed = 0;
+        }
+        if (payloadKilobytesUsed == null) {
+            payloadKilobytesUsed = 0L;
         }
     }
 
@@ -117,5 +136,29 @@ public class UserEntitlement {
 
     public void setSourceTransactionId(Long sourceTransactionId) {
         this.sourceTransactionId = sourceTransactionId;
+    }
+
+    public BigDecimal getBatchDownloadUsedMb() {
+        return batchDownloadUsedMb;
+    }
+
+    public void setBatchDownloadUsedMb(BigDecimal batchDownloadUsedMb) {
+        this.batchDownloadUsedMb = batchDownloadUsedMb;
+    }
+
+    public Integer getRealtimeSubscriptionsUsed() {
+        return realtimeSubscriptionsUsed;
+    }
+
+    public void setRealtimeSubscriptionsUsed(Integer realtimeSubscriptionsUsed) {
+        this.realtimeSubscriptionsUsed = realtimeSubscriptionsUsed;
+    }
+
+    public Long getPayloadKilobytesUsed() {
+        return payloadKilobytesUsed;
+    }
+
+    public void setPayloadKilobytesUsed(Long payloadKilobytesUsed) {
+        this.payloadKilobytesUsed = payloadKilobytesUsed;
     }
 }

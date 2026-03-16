@@ -28,6 +28,12 @@ public class CreateDataProductRequest {
 
     private BillingInterval billingInterval = BillingInterval.ONE_TIME;
 
+    private BigDecimal batchDownloadLimitMb;
+
+    private Integer realtimeSubscriptionLimit;
+
+    private Integer maxRealtimePayloadKb;
+
     public String getCode() {
         return code;
     }
@@ -82,5 +88,29 @@ public class CreateDataProductRequest {
 
     public void setBillingInterval(BillingInterval billingInterval) {
         this.billingInterval = billingInterval;
+    }
+
+    public BigDecimal getBatchDownloadLimitMb() {
+        return batchDownloadLimitMb;
+    }
+
+    public void setBatchDownloadLimitMb(BigDecimal batchDownloadLimitMb) {
+        this.batchDownloadLimitMb = batchDownloadLimitMb;
+    }
+
+    public Integer getRealtimeSubscriptionLimit() {
+        return realtimeSubscriptionLimit;
+    }
+
+    public void setRealtimeSubscriptionLimit(Integer realtimeSubscriptionLimit) {
+        this.realtimeSubscriptionLimit = realtimeSubscriptionLimit;
+    }
+
+    public Integer getMaxRealtimePayloadKb() {
+        return maxRealtimePayloadKb;
+    }
+
+    public void setMaxRealtimePayloadKb(Integer maxRealtimePayloadKb) {
+        this.maxRealtimePayloadKb = maxRealtimePayloadKb;
     }
 }

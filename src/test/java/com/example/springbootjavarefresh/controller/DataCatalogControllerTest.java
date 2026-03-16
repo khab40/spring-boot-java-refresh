@@ -3,12 +3,15 @@ package com.example.springbootjavarefresh.controller;
 import com.example.springbootjavarefresh.entity.BillingInterval;
 import com.example.springbootjavarefresh.entity.DataProduct;
 import com.example.springbootjavarefresh.entity.ProductAccessType;
+import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
 import com.example.springbootjavarefresh.service.DataCatalogService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -23,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(DataCatalogController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class DataCatalogControllerTest {
 
     @Autowired
@@ -30,6 +34,12 @@ class DataCatalogControllerTest {
 
     @MockBean
     private DataCatalogService dataCatalogService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private UserDetailsService userDetailsService;
 
     @Test
     void shouldReturnCatalogProducts() throws Exception {

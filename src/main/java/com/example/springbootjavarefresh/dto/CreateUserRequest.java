@@ -2,6 +2,7 @@ package com.example.springbootjavarefresh.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class CreateUserRequest {
 
@@ -14,6 +15,10 @@ public class CreateUserRequest {
 
     @NotBlank
     private String lastName;
+
+    @NotBlank
+    @Size(min = 8)
+    private String password;
 
     private String company;
     private String country;
@@ -41,6 +46,14 @@ public class CreateUserRequest {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public String getCompany() {

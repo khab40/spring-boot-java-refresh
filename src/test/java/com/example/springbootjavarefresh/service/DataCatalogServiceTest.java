@@ -41,6 +41,9 @@ class DataCatalogServiceTest {
         request.setCurrency("USD");
         request.setAccessType(ProductAccessType.ONE_TIME_PURCHASE);
         request.setBillingInterval(BillingInterval.YEARLY);
+        request.setBatchDownloadLimitMb(new BigDecimal("250.00"));
+        request.setRealtimeSubscriptionLimit(3);
+        request.setMaxRealtimePayloadKb(512);
 
         DataProduct savedProduct = new DataProduct();
         savedProduct.setId(11L);
@@ -56,6 +59,9 @@ class DataCatalogServiceTest {
         assertEquals(BillingInterval.ONE_TIME, persisted.getBillingInterval());
         assertEquals(new BigDecimal("149.00"), persisted.getPrice());
         assertEquals("USD", persisted.getCurrency());
+        assertEquals(new BigDecimal("250.00"), persisted.getBatchDownloadLimitMb());
+        assertEquals(3, persisted.getRealtimeSubscriptionLimit());
+        assertEquals(512, persisted.getMaxRealtimePayloadKb());
         assertEquals(11L, result.getId());
     }
 }
