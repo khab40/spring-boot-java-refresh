@@ -130,6 +130,24 @@ docker build -t spring-boot-java-refresh .
 docker run -p 8080:8080 spring-boot-java-refresh
 ```
 
+Or use the helper scripts in `scripts/`:
+```bash
+./scripts/build.sh
+./scripts/run.sh
+./scripts/test.sh
+./scripts/logs.sh app
+./scripts/shutdown.sh
+```
+
+Verified workflow:
+- `./scripts/build.sh` builds the Java 21 Docker image
+- `./scripts/run.sh` starts PostgreSQL and the app with Docker Compose
+- `./scripts/test.sh` runs the Maven test suite in a Java 21 container
+- `./scripts/logs.sh app` tails container logs
+- `./scripts/shutdown.sh` stops and removes the stack
+
+The Docker image builds with Maven in a build stage and runs on Java 21 JRE in the final stage.
+
 ## Contributing
 
 Please read CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
