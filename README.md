@@ -62,12 +62,26 @@ The service will be available at `http://localhost:8080`
 
 ### Stripe Configuration
 
-Set the following properties before using payment endpoints against Stripe:
+The application now reads Stripe settings from environment variables, and the local helper scripts automatically load them from `.env`.
 
-- `stripe.api-key` for checkout session creation
-- `stripe.webhook-secret` for verified webhook processing
+Set these sandbox values in `.env` before using payment endpoints:
 
-If `stripe.webhook-secret` is left blank, webhook payloads can still be parsed for local testing, but signature verification is skipped.
+- `STRIPE_API_KEY` for Stripe test-mode checkout session creation
+- `STRIPE_WEBHOOK_SECRET` for verified webhook processing
+- `APP_BASE_URL` and `SERVER_PORT` for local callback routing
+
+Local sandbox webhook flow:
+
+1. Start the application locally on `http://localhost:8080`.
+2. Run `./scripts/stripe-listen.sh`.
+3. Stripe CLI will expose a reachable forwarding tunnel to `POST /api/payments/webhook`.
+4. Copy the signing secret printed by Stripe CLI into `STRIPE_WEBHOOK_SECRET` in `.env` if needed.
+
+The webhook endpoint used by local forwarding is:
+
+- `POST /api/payments/webhook`
+
+If `STRIPE_WEBHOOK_SECRET` is left blank, webhook payloads can still be parsed for local testing, but signature verification is skipped.
 
 ### Authentication Configuration
 

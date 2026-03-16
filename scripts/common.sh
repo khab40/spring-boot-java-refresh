@@ -5,6 +5,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+load_env_file() {
+  local env_file
+  env_file="${REPO_ROOT}/.env"
+
+  if [[ -f "${env_file}" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "${env_file}"
+    set +a
+  fi
+}
+
 prepare_docker_env() {
   local docker_config_source docker_helper
 
@@ -27,6 +39,7 @@ prepare_docker_env() {
   fi
 }
 
+load_env_file
 prepare_docker_env
 
 if docker compose version >/dev/null 2>&1; then
