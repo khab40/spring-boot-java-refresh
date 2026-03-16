@@ -1,7 +1,7 @@
 # Architecture Overview
 
 ## Purpose
-This system is a Spring Boot backend for selling and serving market data products.
+Market Data Lake is a Spring Boot backend for selling and serving market data products.
 
 Its current goals are:
 - Manage market data and legacy subscriptions

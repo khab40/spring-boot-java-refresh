@@ -1,6 +1,6 @@
-# Spring Boot Java Refresh
+# Market Data Lake
 
-This project is a REST API backend service built with Spring Boot for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, and asynchronous Stripe-backed payment flows. The service uses H2 database for local development and PostgreSQL for containerized deployments.
+Market Data Lake is a REST API backend service built with Spring Boot for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, and asynchronous Stripe-backed payment flows. The service uses H2 database for local development and PostgreSQL for containerized deployments.
 
 ## Features
 
@@ -58,7 +58,7 @@ The service will be available at `http://localhost:8080`
 1. Run `docker-compose up -d` to start the PostgreSQL database
 2. Update `application.properties` to use PostgreSQL configuration
 3. Run `mvn clean package` to build the JAR
-4. Run `java -jar target/spring-boot-java-refresh-0.0.1-SNAPSHOT.jar`
+4. Run `java -jar target/market-data-lake-0.0.1-SNAPSHOT.jar`
 
 ### Stripe Configuration
 
@@ -277,15 +277,15 @@ Current automated coverage includes:
 
 ```bash
 mvn clean package
-java -jar target/spring-boot-java-refresh-0.0.1-SNAPSHOT.jar
+java -jar target/market-data-lake-0.0.1-SNAPSHOT.jar
 ```
 
 ## Docker
 
 Build and run with Docker:
 ```bash
-docker build -t spring-boot-java-refresh .
-docker run -p 8080:8080 spring-boot-java-refresh
+docker build -t market-data-lake .
+docker run -p 8080:8080 market-data-lake
 ```
 
 Or use the helper scripts in `scripts/`:
@@ -312,4 +312,4 @@ Please read CONTRIBUTING.md for details on our code of conduct and the process f
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Market Data Lake is licensed under the MIT License. See the LICENSE file for details.
