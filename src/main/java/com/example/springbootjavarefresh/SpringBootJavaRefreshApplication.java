@@ -2,12 +2,13 @@ package com.example.springbootjavarefresh;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 @SpringBootApplication
+@EnableAsync
 public class SpringBootJavaRefreshApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(SpringBootJavaRefreshApplication.class, args);
     }
-
 }

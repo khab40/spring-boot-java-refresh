@@ -40,6 +40,11 @@ nbproject/
 # Visual Studio Code
 .vscode/
 
+# Scala/Metals/Bloop
+.bloop/
+.metals/
+.scala-build/
+
 # OS
 .DS_Store
 Thumbs.db
