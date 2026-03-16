@@ -1,6 +1,6 @@
 # Market Data Lake
 
-Market Data Lake is a REST API backend service built with Spring Boot for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, and asynchronous Stripe-backed payment flows. The service uses H2 database for local development and PostgreSQL for containerized deployments.
+Market Data Lake is a REST API backend service built with Spring Boot for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, and asynchronous Stripe-backed payment flows. Market data is stored in Delta Lake, while transactional application state stays in a relational store backed by H2 for local and containerized runtime flows.
 
 ## Features
 
@@ -15,8 +15,9 @@ Market Data Lake is a REST API backend service built with Spring Boot for market
 - API key usage tracking with per-product quota enforcement for batch downloads and realtime subscriptions
 - Usage history tables that can later support billing, forecasting, and audit reporting
 - Asynchronous Stripe checkout session creation and webhook-based payment completion
-- H2 in-memory database for local development
-- PostgreSQL database for production
+- Delta Lake as the main market data storage system
+- Market data partitioning by `marketDate` and `dataType`
+- H2 database for transactional local development and containerized runtime
 - Docker containerization
 - Comprehensive unit tests
 
@@ -40,11 +41,11 @@ Market Data Lake is a REST API backend service built with Spring Boot for market
 
 - Java 21 or higher
 - Maven 3.6+
-- Docker and Docker Compose (for production database)
+- Docker and Docker Compose
 
 ## Getting Started
 
-### Local Development (H2 Database)
+### Local Development
 
 1. Clone the repository
 2. Run `mvn clean install` to build the project
@@ -53,12 +54,18 @@ Market Data Lake is a REST API backend service built with Spring Boot for market
 
 The service will be available at `http://localhost:8080`
 
-### Production Setup (PostgreSQL Database)
+Local execution uses:
+- H2 for transactional application state
+- a filesystem Delta table for market data at `MARKETDATA_DELTA_PATH`
 
-1. Run `docker-compose up -d` to start the PostgreSQL database
-2. Update `application.properties` to use PostgreSQL configuration
-3. Run `mvn clean package` to build the JAR
-4. Run `java -jar target/market-data-lake-0.0.1-SNAPSHOT.jar`
+### Containerized Runtime
+
+1. Run `docker-compose up -d` or `./scripts/run.sh`
+2. The application container mounts a shared Delta volume at `/data/delta`
+3. The application writes market data to `/data/delta/market_data`
+4. Transactional application state is stored in an H2 file mounted at `/data/h2/market-data-lake`
+
+The Docker Compose stack includes the official Delta Lake image pinned to the stable `deltaio/delta-docker:4.0.0` tag.
 
 ### Stripe Configuration
 
@@ -100,7 +107,7 @@ Public endpoints include `/api/auth/**`, `/api/access/register`, `/api/access/lo
 - `GET /api/market-data` - Get all market data
 - `GET /api/market-data/{id}` - Get market data by ID
 - `GET /api/market-data/symbol/{symbol}` - Get market data by symbol
-- `POST /api/market-data` - Create new market data
+- `POST /api/market-data` - Create new market data stored in Delta Lake
 - `DELETE /api/market-data/{id}` - Delete market data by ID
 
 ### Subscriptions
@@ -159,14 +166,16 @@ The API is documented using OpenAPI 3.0. Access the Swagger UI at `http://localh
 
 ## Database Configuration
 
-### Local Development (H2)
-- URL: `jdbc:h2:mem:marketdata`
+### Transactional State
+- URL: `jdbc:h2:mem:marketdata` for local execution
+- URL: `jdbc:h2:file:/data/h2/market-data-lake` in Docker Compose
 - Console: `http://localhost:8080/h2-console`
 
-### Production (PostgreSQL)
-- URL: `jdbc:postgresql://localhost:5432/marketdata`
-- Username: `postgres`
-- Password: `password`
+### Market Data Lake Storage
+- Path: `${MARKETDATA_DELTA_PATH}`
+- Local default: `${java.io.tmpdir}/mdl-delta/market_data`
+- Docker Compose path: `/data/delta/market_data`
+- Partition columns: `marketDate`, `dataType`
 
 ## Domain Model
 
@@ -177,6 +186,7 @@ The API is documented using OpenAPI 3.0. Access the Swagger UI at `http://localh
 - `UserEntitlement` records which products a user can access, whether acquired as a recurring subscription or one-time purchase, and how much quota has already been consumed.
 - `ApiKey` stores issued credentials per user without persisting the raw token, only a hash and prefix.
 - `ApiKeyUsageRecord` stores auditable usage events for later billing, prediction, and audit reporting.
+- `MarketData` is stored as Delta Lake records with `marketDate` and `dataType` partitions to support efficient time-sliced market data access.
 
 ## Architecture
 
@@ -212,7 +222,9 @@ graph TB
     AuthSvc --> ApiKeySvc
     AuthSvc --> UserSvc
 
-    Market --> LegacySvc[Legacy Services]
+    Market --> MarketSvc[Market Data Service]
+    MarketSvc --> DeltaStore[Delta Lake Market Data Store]
+    DeltaStore --> Delta[(Delta Lake Market Data)]
     Subs --> LegacySvc
     LegacySvc --> Repos[Repositories]
     UserSvc --> Repos
@@ -221,14 +233,17 @@ graph TB
     PaymentSvc --> Repos
     WebhookSvc --> Repos
     KeyRepo --> Repos
-    Repos --> Db[(Relational Database)]
+    Repos --> Db[(Relational Transaction Store)]
 
     subgraph Local
         Db --> H2[H2 In-Memory]
+        Delta --> LocalFs[Local Delta Files]
     end
 
     subgraph Containerized
-        Db --> Pg[PostgreSQL]
+        Db --> H2File[H2 File Store]
+        Delta --> DeltaVolume[Shared Delta Volume]
+        DeltaVolume --> DeltaContainer[deltaio/delta-docker:4.0.0]
         Api --> Docker[Docker Compose Stack]
     end
 ```
@@ -246,9 +261,9 @@ src/
 │   ├── java/
 │   │   └── com/example/springbootjavarefresh/
 │   │       ├── controller/     # REST controllers
-│   │       ├── entity/         # JPA entities
-│   │       ├── repository/     # Data repositories
-│   │       ├── service/        # Business logic
+│   │       ├── entity/         # Domain models and JPA entities
+│   │       ├── repository/     # Relational repositories
+│   │       ├── service/        # Business logic and Delta Lake storage adapters
 │   │       └── SpringBootJavaRefreshApplication.java
 │   └── resources/
 │       ├── application.properties
@@ -299,7 +314,7 @@ Or use the helper scripts in `scripts/`:
 
 Verified workflow:
 - `./scripts/build.sh` builds the Java 21 Docker image
-- `./scripts/run.sh` starts PostgreSQL and the app with Docker Compose
+- `./scripts/run.sh` starts the Delta Lake container and the app with Docker Compose
 - `./scripts/test.sh` runs the Maven test suite in a Java 21 container
 - `./scripts/logs.sh app` tails container logs
 - `./scripts/shutdown.sh` stops and removes the stack

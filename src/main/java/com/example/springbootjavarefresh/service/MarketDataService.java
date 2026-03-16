@@ -1,8 +1,6 @@
 package com.example.springbootjavarefresh.service;
 
 import com.example.springbootjavarefresh.entity.MarketData;
-import com.example.springbootjavarefresh.repository.MarketDataRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,26 +9,30 @@ import java.util.Optional;
 @Service
 public class MarketDataService {
 
-    @Autowired
-    private MarketDataRepository marketDataRepository;
+    private final MarketDataStore marketDataStore;
+
+    public MarketDataService(MarketDataStore marketDataStore) {
+        this.marketDataStore = marketDataStore;
+    }
 
     public List<MarketData> getAllMarketData() {
-        return marketDataRepository.findAll();
+        return marketDataStore.findAll();
     }
 
     public Optional<MarketData> getMarketDataById(Long id) {
-        return marketDataRepository.findById(id);
+        return marketDataStore.findById(id);
     }
 
     public List<MarketData> getMarketDataBySymbol(String symbol) {
-        return marketDataRepository.findBySymbol(symbol);
+        return marketDataStore.findBySymbol(symbol);
     }
 
     public MarketData saveMarketData(MarketData marketData) {
-        return marketDataRepository.save(marketData);
+        marketData.normalize();
+        return marketDataStore.save(marketData);
     }
 
     public void deleteMarketData(Long id) {
-        marketDataRepository.deleteById(id);
+        marketDataStore.deleteById(id);
     }
 }

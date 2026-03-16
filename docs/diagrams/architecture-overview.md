@@ -13,11 +13,15 @@ graph TB
     Controllers --> Services[Services]
     Services --> Security[JWT Auth and API Key Access]
     Services --> Commerce[Catalog Payments Entitlements]
-    Services --> Legacy[Market Data and Legacy Subscriptions]
+    Services --> Market[Market Data Service]
+    Services --> Legacy[Legacy Subscriptions]
     Security --> Repositories[Spring Data JPA Repositories]
     Commerce --> Repositories
     Legacy --> Repositories
-    Repositories --> H2[(H2 Local and Test)]
-    Repositories --> Pg[(PostgreSQL Docker Runtime)]
+    Market --> DeltaStore[Delta Lake Market Data Store]
+    DeltaStore --> Delta[(Delta Lake)]
+    Repositories --> H2[(H2 Transaction Store)]
+    Delta --> Partitioning[Partitions: marketDate, dataType]
     Scripts[Docker Helper Scripts] --> Api
+    Scripts --> DeltaContainer[deltaio/delta-docker:4.0.0]
 ```

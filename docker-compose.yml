@@ -1,27 +1,30 @@
 services:
-  postgres:
-    image: postgres:15
-    container_name: marketdata-postgres
-    environment:
-      POSTGRES_DB: marketdata
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+  delta-lake:
+    image: deltaio/delta-docker:4.0.0
+    container_name: market-data-lake-delta
+    command: ["sleep", "infinity"]
     ports:
-      - "5432:5432"
+      - "8888:8888"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - delta_market_data:/data/delta
 
   app:
     build: .
-    container_name: spring-boot-app
+    container_name: market-data-lake-app
     ports:
       - "8080:8080"
     depends_on:
-      - postgres
+      - delta-lake
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/marketdata
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/h2/market-data-lake;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD:
+      MARKETDATA_DELTA_PATH: /data/delta/market_data
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    volumes:
+      - delta_market_data:/data/delta
+      - app_relational_data:/data/h2
 
 volumes:
-  postgres_data:
+  delta_market_data:
+  app_relational_data:

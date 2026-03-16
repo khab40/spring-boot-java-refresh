@@ -16,13 +16,14 @@ The main actors and integrations are:
 - End users who register, authenticate, purchase data products, and consume data through API keys
 - Internal operators or administrators who manage catalog products and inspect users and entitlements
 - Stripe, which handles checkout sessions and sends payment webhooks
-- PostgreSQL or H2, which stores application state
+- Delta Lake, which stores market data
+- H2, which stores transactional application state
 
 At present, the application is a single backend service. There is no separate API gateway, event streaming platform, data lake, or ML platform in the deployed implementation.
 
 Architecture decisions are recorded in:
 - [ADR-0001](./docs/adr/0001-spring-boot-layered-monolith.md)
-- [ADR-0002](./docs/adr/0002-use-jpa-with-h2-and-postgresql.md)
+- [ADR-0002](./docs/adr/0002-use-delta-lake-for-market-data-and-jpa-for-transactional-data.md)
 - [ADR-0003](./docs/adr/0003-use-java-21-and-dockerized-build-test-runtime.md)
 - [ADR-0004](./docs/adr/0004-use-asynchronous-stripe-checkout-and-webhooks.md)
 - [ADR-0005](./docs/adr/0005-use-api-keys-with-entitlement-based-usage-limits.md)
@@ -43,7 +44,7 @@ Stripe checkout session creation, payment transaction tracking, and webhook-driv
 - Catalog and entitlement domain
 Data products define pricing and quota limits; user entitlements represent purchased access and consumed quota.
 - Persistence layer
-Spring Data JPA repositories backed by H2 for local/test use and PostgreSQL for containerized runtime.
+Market data is stored in Delta Lake, partitioned by `marketDate` and `dataType`, while transactional domains stay in H2-backed Spring Data JPA repositories.
 
 ## Data Flow
 The primary data flows are:
@@ -56,12 +57,14 @@ The primary data flows are:
 6. Successful payment events activate or update `UserEntitlement` records.
 7. Clients submit usage through `/api/access/usage`.
 8. The application resolves the API key, checks the user entitlement for the target product, enforces quota limits, updates usage counters, and writes an `ApiKeyUsageRecord`.
+9. Market data create, read, and delete flows use the Delta Lake storage adapter, which persists records into a Delta table partitioned by date and data type.
 
 ## Deployment Architecture
 The current deployment model is simple:
 - A single Spring Boot application process
-- PostgreSQL as the main runtime database in Docker Compose
-- H2 for local and test execution
+- The official Delta Lake Docker image pinned to `deltaio/delta-docker:4.0.0`
+- Delta Lake as the main market data store in Docker Compose through a shared mounted volume
+- H2 for transactional local, test, and containerized execution
 - Docker-based scripts for build, test, run, logs, and shutdown
 
 There is currently no Kubernetes cluster, service mesh, dedicated ingress tier, or multi-service networking topology in this repository.
@@ -70,7 +73,7 @@ There is currently no Kubernetes cluster, service mesh, dedicated ingress tier, 
 - Backend: Java 21, Spring Boot, Spring MVC, Spring Data JPA, Spring Security
 - Authentication: BCrypt password hashing, JWT bearer tokens
 - Payments: Stripe Checkout and webhook processing
-- Data: PostgreSQL, H2
+- Data: Delta Lake, Apache Spark, H2
 - Build and Test: Maven, Docker, Docker Compose
 - API Documentation: springdoc OpenAPI / Swagger UI
 

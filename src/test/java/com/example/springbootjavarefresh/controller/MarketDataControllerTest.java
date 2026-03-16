@@ -1,6 +1,7 @@
 package com.example.springbootjavarefresh.controller;
 
 import com.example.springbootjavarefresh.entity.MarketData;
+import com.example.springbootjavarefresh.entity.MarketDataType;
 import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
 import com.example.springbootjavarefresh.service.MarketDataService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,19 +44,20 @@ class MarketDataControllerTest {
 
     @Test
     void testGetAllMarketData() throws Exception {
-        MarketData data = new MarketData("AAPL", BigDecimal.valueOf(150.00), 1000L);
+        MarketData data = new MarketData("AAPL", BigDecimal.valueOf(150.00), 1000L, MarketDataType.TICK);
         when(marketDataService.getAllMarketData()).thenReturn(Arrays.asList(data));
 
         mockMvc.perform(get("/api/market-data"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].symbol").value("AAPL"));
+                .andExpect(jsonPath("$[0].symbol").value("AAPL"))
+                .andExpect(jsonPath("$[0].dataType").value("TICK"));
 
         verify(marketDataService, times(1)).getAllMarketData();
     }
 
     @Test
     void testGetMarketDataById() throws Exception {
-        MarketData data = new MarketData("AAPL", BigDecimal.valueOf(150.00), 1000L);
+        MarketData data = new MarketData("AAPL", BigDecimal.valueOf(150.00), 1000L, MarketDataType.TICK);
         data.setId(1L);
         when(marketDataService.getMarketDataById(1L)).thenReturn(Optional.of(data));
 
@@ -68,14 +70,15 @@ class MarketDataControllerTest {
 
     @Test
     void testCreateMarketData() throws Exception {
-        MarketData data = new MarketData("AAPL", BigDecimal.valueOf(150.00), 1000L);
+        MarketData data = new MarketData("AAPL", BigDecimal.valueOf(150.00), 1000L, MarketDataType.CRYPTO);
         when(marketDataService.saveMarketData(any(MarketData.class))).thenReturn(data);
 
         mockMvc.perform(post("/api/market-data")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(data)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.symbol").value("AAPL"));
+                .andExpect(jsonPath("$.symbol").value("AAPL"))
+                .andExpect(jsonPath("$.dataType").value("CRYPTO"));
 
         verify(marketDataService, times(1)).saveMarketData(any(MarketData.class));
     }

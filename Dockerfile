@@ -11,7 +11,7 @@ FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 
-COPY --from=build /app/target/spring-boot-java-refresh-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=build /app/target/market-data-lake-0.0.1-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 

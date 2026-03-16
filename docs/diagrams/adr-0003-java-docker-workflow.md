@@ -17,5 +17,7 @@ graph LR
     Docker --> Java21[Java 21 Runtime]
     Docker --> Maven[Maven Build]
     Docker --> App[Spring Boot App]
-    Docker --> Pg[(PostgreSQL)]
+    Docker --> DeltaContainer[deltaio/delta-docker:4.0.0]
+    App --> H2[(H2 Transaction Store)]
+    App --> Delta[(Delta Lake Market Data)]
 ```
