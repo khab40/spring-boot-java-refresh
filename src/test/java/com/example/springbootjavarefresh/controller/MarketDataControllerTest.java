@@ -12,6 +12,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -69,6 +70,7 @@ class MarketDataControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
     void testCreateMarketData() throws Exception {
         MarketData data = new MarketData("AAPL", BigDecimal.valueOf(150.00), 1000L, MarketDataType.CRYPTO);
         when(marketDataService.saveMarketData(any(MarketData.class))).thenReturn(data);

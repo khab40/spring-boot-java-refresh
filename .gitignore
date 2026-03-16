@@ -87,3 +87,8 @@ application-prod.properties
 .env
 .env.local
 .env.*.local
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/coverage/

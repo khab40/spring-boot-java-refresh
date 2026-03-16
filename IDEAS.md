@@ -17,4 +17,5 @@ What we plan to do here for MARKET DATA LAKE (MDL) project:
 15. Make MDL Agents friendly. 
 16. Add ML/AI capabilities to the system for data analysis, predictions, and insights generation.
 17. Implement a robust security framework to protect data and ensure compliance with regulations. SOC2
-18. 
+18. Move common UI logics to core-frontend library module. 
+19. Move common backend logics to core-backend module. 

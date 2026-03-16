@@ -16,14 +16,27 @@ services:
     depends_on:
       - delta-lake
     environment:
-      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/h2/market-data-lake;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/h2/market-data-lake;DB_CLOSE_ON_EXIT=FALSE
       SPRING_DATASOURCE_USERNAME: sa
       SPRING_DATASOURCE_PASSWORD:
       MARKETDATA_DELTA_PATH: /data/delta/market_data
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      APP_FRONTEND_ORIGIN: http://localhost:3000
+      APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
+      APP_ADMIN_FIRST_NAME: ${APP_ADMIN_FIRST_NAME:-Admin}
+      APP_ADMIN_LAST_NAME: ${APP_ADMIN_LAST_NAME:-User}
     volumes:
       - delta_market_data:/data/delta
       - app_relational_data:/data/h2
+
+  frontend:
+    build: ./frontend
+    container_name: market-data-lake-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - app
 
 volumes:
   delta_market_data:

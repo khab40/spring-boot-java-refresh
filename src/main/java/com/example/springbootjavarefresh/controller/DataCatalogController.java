@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -46,6 +47,7 @@ public class DataCatalogController {
 
     @PostMapping("/products")
     @Operation(summary = "Create a catalog product")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<DataProduct> createProduct(@Valid @RequestBody CreateDataProductRequest request) {
         return ResponseEntity.ok(dataCatalogService.createProduct(request));
     }

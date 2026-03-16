@@ -6,9 +6,10 @@ Related documents:
 
 ```mermaid
 graph TB
-    Client[Client Apps] --> Api[Spring Boot REST API]
+    Client[Browser Clients] --> Next[Next.js Web UI]
     Admin[Operators and Admins] --> Api
     Stripe[Stripe Platform] --> Api
+    Next --> Api[Spring Boot REST API]
     Api --> Controllers[Controllers]
     Controllers --> Services[Services]
     Services --> Security[JWT Auth and API Key Access]
@@ -23,5 +24,6 @@ graph TB
     Repositories --> H2[(H2 Transaction Store)]
     Delta --> Partitioning[Partitions: marketDate, dataType]
     Scripts[Docker Helper Scripts] --> Api
+    Scripts --> Next
     Scripts --> DeltaContainer[deltaio/delta-docker:4.0.0]
 ```

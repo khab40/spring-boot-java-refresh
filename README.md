@@ -1,6 +1,6 @@
 # Market Data Lake
 
-Market Data Lake is a REST API backend service built with Spring Boot for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, and asynchronous Stripe-backed payment flows. Market data is stored in Delta Lake, while transactional application state stays in a relational store backed by H2 for local and containerized runtime flows.
+Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, asynchronous Stripe-backed payment flows, and administration. Market data is stored in Delta Lake, while transactional application state stays in a relational store backed by H2 for local and containerized runtime flows.
 
 ## Features
 
@@ -18,6 +18,7 @@ Market Data Lake is a REST API backend service built with Spring Boot for market
 - Delta Lake as the main market data storage system
 - Market data partitioning by `marketDate` and `dataType`
 - H2 database for transactional local development and containerized runtime
+- Separate Next.js web UI running in its own Docker container
 - Docker containerization
 - Comprehensive unit tests
 
@@ -36,6 +37,7 @@ Market Data Lake is a REST API backend service built with Spring Boot for market
 - Checkout requests create `PaymentTransaction` records immediately and then start Stripe session creation asynchronously.
 - Stripe webhooks finalize payments and grant `UserEntitlement` access for subscriptions and one-time purchases.
 - API access registration and login flows mint API keys for users, and each usage event is written into dedicated usage tables while entitlement limits are enforced.
+- The Next.js web UI consumes the backend REST API for signup, signin, catalog browsing, checkout polling, entitlement inspection, and admin audit workflows.
 
 ## Prerequisites
 
@@ -64,6 +66,7 @@ Local execution uses:
 2. The application container mounts a shared Delta volume at `/data/delta`
 3. The application writes market data to `/data/delta/market_data`
 4. Transactional application state is stored in an H2 file mounted at `/data/h2/market-data-lake`
+5. The separate web UI is available at `http://localhost:3000`
 
 The Docker Compose stack includes the official Delta Lake image pinned to the stable `deltaio/delta-docker:4.0.0` tag.
 
@@ -100,6 +103,16 @@ JWT signing is configured with:
 All management endpoints are protected by bearer authentication unless explicitly documented as public.
 Public endpoints include `/api/auth/**`, `/api/access/register`, `/api/access/login`, `/api/access/usage`, `/api/access/usage/summary`, and `/api/payments/webhook`.
 
+### Web UI
+
+The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It provides:
+
+- signup, signin, and signout flows
+- catalog browsing and market-data browsing
+- Stripe checkout initiation and transaction polling
+- entitlement and API key visibility for signed-in users
+- administration views for dashboard, product creation, market-data insertion, and audit activity
+
 ## API Endpoints
 
 ### Market Data
@@ -129,6 +142,9 @@ Public endpoints include `/api/auth/**`, `/api/access/register`, `/api/access/lo
 
 - `POST /api/auth/register` - Register with password credentials and receive a JWT plus API key
 - `POST /api/auth/login` - Authenticate with email/password and receive a JWT plus API key
+- `GET /api/auth/me` - Get the currently authenticated user profile
+- `GET /api/auth/me/entitlements` - Get the currently authenticated user's entitlements
+- `POST /api/auth/logout` - Client-side signout endpoint
 
 ### Data Catalog
 
@@ -150,6 +166,12 @@ Public endpoints include `/api/auth/**`, `/api/access/register`, `/api/access/lo
 - `POST /api/access/login` - Issue a fresh API key for an existing user email/password login
 - `POST /api/access/usage` - Record API usage and enforce purchased limits
 - `GET /api/access/usage/summary?apiKey=...&productId=...` - Query remaining quota for a key and product
+
+### Administration
+
+- `GET /api/admin/dashboard` - Get dashboard counts and recent audit activity, requires admin role
+- `GET /api/admin/payments` - Get recent payments, requires admin role
+- `GET /api/admin/usage` - Get recent usage events, requires admin role
 
 ### Example Commerce Flow
 
@@ -192,7 +214,8 @@ The API is documented using OpenAPI 3.0. Access the Swagger UI at `http://localh
 
 ```mermaid
 graph TB
-    Client[Client Apps] --> Api[Spring Boot REST API]
+    Client[Browser Clients] --> Frontend[Next.js Web UI]
+    Frontend --> Api[Spring Boot REST API]
     Api --> Market[Market Data Controller]
     Api --> Subs[Subscription Controller]
     Api --> Users[User Controller]
@@ -245,6 +268,7 @@ graph TB
         Delta --> DeltaVolume[Shared Delta Volume]
         DeltaVolume --> DeltaContainer[deltaio/delta-docker:4.0.0]
         Api --> Docker[Docker Compose Stack]
+        Frontend --> Docker
     end
 ```
 
@@ -313,9 +337,9 @@ Or use the helper scripts in `scripts/`:
 ```
 
 Verified workflow:
-- `./scripts/build.sh` builds the Java 21 Docker image
-- `./scripts/run.sh` starts the Delta Lake container and the app with Docker Compose
-- `./scripts/test.sh` runs the Maven test suite in a Java 21 container
+- `./scripts/build.sh` builds the backend and frontend Docker images
+- `./scripts/run.sh` starts the Delta Lake container, backend API, and frontend UI with Docker Compose
+- `./scripts/test.sh` runs the Maven backend tests and the Next.js frontend tests
 - `./scripts/logs.sh app` tails container logs
 - `./scripts/shutdown.sh` stops and removes the stack
 

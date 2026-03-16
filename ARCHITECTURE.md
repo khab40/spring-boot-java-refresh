@@ -28,6 +28,7 @@ Architecture decisions are recorded in:
 - [ADR-0004](./docs/adr/0004-use-asynchronous-stripe-checkout-and-webhooks.md)
 - [ADR-0005](./docs/adr/0005-use-api-keys-with-entitlement-based-usage-limits.md)
 - [ADR-0006](./docs/adr/0006-use-jwt-based-stateless-authentication.md)
+- [ADR-0007](./docs/adr/0007-use-nextjs-web-ui-in-a-separate-container.md)
 
 The main system diagram is available in:
 - [Architecture Overview Diagram](./docs/diagrams/architecture-overview.md)
@@ -35,6 +36,8 @@ The main system diagram is available in:
 ## Key Components
 - Authentication layer
 JWT-based authentication with Spring Security, password hashing, and stateless bearer-token validation.
+- Web experience layer
+A separate Next.js frontend provides signup, signin, catalog, checkout, entitlement, and administration workflows.
 - API access layer
 API key issuance, lookup, quota enforcement, and usage recording for downstream data access.
 - Backend services
@@ -58,9 +61,11 @@ The primary data flows are:
 7. Clients submit usage through `/api/access/usage`.
 8. The application resolves the API key, checks the user entitlement for the target product, enforces quota limits, updates usage counters, and writes an `ApiKeyUsageRecord`.
 9. Market data create, read, and delete flows use the Delta Lake storage adapter, which persists records into a Delta table partitioned by date and data type.
+10. The web UI runs in a separate container, calls the Java API over HTTP, and drives the end-user and admin flows without duplicating backend business rules.
 
 ## Deployment Architecture
 The current deployment model is simple:
+- A separate Next.js web UI container
 - A single Spring Boot application process
 - The official Delta Lake Docker image pinned to `deltaio/delta-docker:4.0.0`
 - Delta Lake as the main market data store in Docker Compose through a shared mounted volume
@@ -70,6 +75,7 @@ The current deployment model is simple:
 There is currently no Kubernetes cluster, service mesh, dedicated ingress tier, or multi-service networking topology in this repository.
 
 ## Technology Stack
+- Frontend: React, Next.js, TypeScript
 - Backend: Java 21, Spring Boot, Spring MVC, Spring Data JPA, Spring Security
 - Authentication: BCrypt password hashing, JWT bearer tokens
 - Payments: Stripe Checkout and webhook processing
@@ -100,3 +106,4 @@ Related diagrams:
 - [ADR-0004 Diagram](./docs/diagrams/adr-0004-stripe-payment-flow.md)
 - [ADR-0005 Diagram](./docs/diagrams/adr-0005-api-key-usage-limits.md)
 - [ADR-0006 Diagram](./docs/diagrams/adr-0006-jwt-auth-flow.md)
+- [ADR-0007 Diagram](./docs/diagrams/adr-0007-nextjs-web-ui.md)

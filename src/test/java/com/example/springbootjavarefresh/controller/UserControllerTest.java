@@ -12,6 +12,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -44,6 +45,7 @@ class UserControllerTest {
     private UserDetailsService userDetailsService;
 
     @Test
+    @WithMockUser(roles = "ADMIN")
     void shouldGetUserById() throws Exception {
         User user = new User();
         user.setId(1L);
@@ -58,6 +60,7 @@ class UserControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
     void shouldListAllUsers() throws Exception {
         User user = new User();
         user.setId(1L);
@@ -72,6 +75,7 @@ class UserControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
     void shouldCreateUser() throws Exception {
         User user = new User();
         user.setId(2L);
@@ -97,6 +101,7 @@ class UserControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
     void shouldReturnUserEntitlements() throws Exception {
         UserEntitlement entitlement = new UserEntitlement();
         entitlement.setId(30L);
