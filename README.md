@@ -1,6 +1,6 @@
 # Spring Boot Java Refresh
 
-This project is a REST API backend service built with Spring Boot for market data delivery, user management, data product cataloging, and asynchronous Stripe-backed payment flows. The service uses H2 database for local development and PostgreSQL for containerized deployments.
+This project is a REST API backend service built with Spring Boot for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, and asynchronous Stripe-backed payment flows. The service uses H2 database for local development and PostgreSQL for containerized deployments.
 
 ## Features
 
@@ -8,20 +8,33 @@ This project is a REST API backend service built with Spring Boot for market dat
 - Market Data management (CRUD operations)
 - Legacy subscription management for Market Data
 - User management with profile fields such as email, first name, last name, company, country, and phone number
+- Full authentication system with password hashing, JWT bearer tokens, and stateless security filters
 - Data Catalog service for listing and managing purchasable data products
 - User entitlement tracking for subscription and one-time product access
+- API key issuance for user registration and login flows
+- API key usage tracking with per-product quota enforcement for batch downloads and realtime subscriptions
+- Usage history tables that can later support billing, forecasting, and audit reporting
 - Asynchronous Stripe checkout session creation and webhook-based payment completion
 - H2 in-memory database for local development
 - PostgreSQL database for production
 - Docker containerization
 - Comprehensive unit tests
 
+## Documentation
+
+- [Architecture Overview](./ARCHITECTURE.md)
+- [Architecture Decision Records](./docs/adr)
+- [Architecture Diagrams](./docs/diagrams/architecture-overview.md)
+
 ## Core Flows
 
 - Catalog administrators create `DataProduct` records that define price, currency, purchase mode, and billing interval.
+- Catalog administrators can also define quota limits such as batch download megabytes, realtime subscription counts, and payload caps.
 - Clients create `User` records and query `/api/catalog/products` to discover available offerings.
+- Credential-based registration and login return a JWT for management APIs and an API key for downstream data access.
 - Checkout requests create `PaymentTransaction` records immediately and then start Stripe session creation asynchronously.
 - Stripe webhooks finalize payments and grant `UserEntitlement` access for subscriptions and one-time purchases.
+- API access registration and login flows mint API keys for users, and each usage event is written into dedicated usage tables while entitlement limits are enforced.
 
 ## Prerequisites
 
@@ -56,6 +69,16 @@ Set the following properties before using payment endpoints against Stripe:
 
 If `stripe.webhook-secret` is left blank, webhook payloads can still be parsed for local testing, but signature verification is skipped.
 
+### Authentication Configuration
+
+JWT signing is configured with:
+
+- `security.jwt.secret`
+- `security.jwt.expiration-hours`
+
+All management endpoints are protected by bearer authentication unless explicitly documented as public.
+Public endpoints include `/api/auth/**`, `/api/access/register`, `/api/access/login`, `/api/access/usage`, `/api/access/usage/summary`, and `/api/payments/webhook`.
+
 ## API Endpoints
 
 ### Market Data
@@ -76,10 +99,15 @@ If `stripe.webhook-secret` is left blank, webhook payloads can still be parsed f
 
 ### Users
 
-- `GET /api/users` - Get all users
-- `GET /api/users/{id}` - Get user by ID
-- `POST /api/users` - Create a new user
-- `GET /api/users/{id}/entitlements` - Get user entitlements
+- `GET /api/users` - Get all users, requires bearer token
+- `GET /api/users/{id}` - Get user by ID, requires bearer token
+- `POST /api/users` - Create a new user through the management API, requires bearer token
+- `GET /api/users/{id}/entitlements` - Get user entitlements, requires bearer token
+
+### Authentication
+
+- `POST /api/auth/register` - Register with password credentials and receive a JWT plus API key
+- `POST /api/auth/login` - Authenticate with email/password and receive a JWT plus API key
 
 ### Data Catalog
 
@@ -95,13 +123,21 @@ If `stripe.webhook-secret` is left blank, webhook payloads can still be parsed f
 - `GET /api/payments/{id}` - Get payment transaction status
 - `POST /api/payments/webhook` - Receive Stripe webhook events
 
+### API Access
+
+- `POST /api/access/register` - Register a user with password credentials and return a new API key
+- `POST /api/access/login` - Issue a fresh API key for an existing user email/password login
+- `POST /api/access/usage` - Record API usage and enforce purchased limits
+- `GET /api/access/usage/summary?apiKey=...&productId=...` - Query remaining quota for a key and product
+
 ### Example Commerce Flow
 
-1. Create a user with `POST /api/users`.
-2. Create or query catalog products with `POST /api/catalog/products` or `GET /api/catalog/products`.
+1. Register or sign in with `POST /api/auth/register` or `POST /api/auth/login` to get a bearer token and API key.
+2. Use the bearer token to create or query catalog products with `POST /api/catalog/products` or `GET /api/catalog/products`.
 3. Start checkout with `POST /api/payments/checkout`.
 4. Poll `GET /api/payments/{id}` until Stripe session creation completes.
 5. Let Stripe call `POST /api/payments/webhook` to mark the transaction successful and grant entitlements.
+6. Submit usage events through `POST /api/access/usage` and inspect remaining quota with `GET /api/access/usage/summary`.
 
 ## API Documentation
 
@@ -121,9 +157,12 @@ The API is documented using OpenAPI 3.0. Access the Swagger UI at `http://localh
 ## Domain Model
 
 - `User` stores the customer identity and contact fields used by the commerce flow.
-- `DataProduct` represents a sellable data offering, including code, price, currency, access type, and billing interval.
+- `User` also stores password hashes and roles for credential-based authentication.
+- `DataProduct` represents a sellable data offering, including code, price, currency, access type, billing interval, and API usage quotas.
 - `PaymentTransaction` tracks asynchronous checkout creation and final payment status.
-- `UserEntitlement` records which products a user can access, whether acquired as a recurring subscription or one-time purchase.
+- `UserEntitlement` records which products a user can access, whether acquired as a recurring subscription or one-time purchase, and how much quota has already been consumed.
+- `ApiKey` stores issued credentials per user without persisting the raw token, only a hash and prefix.
+- `ApiKeyUsageRecord` stores auditable usage events for later billing, prediction, and audit reporting.
 
 ## Architecture
 
@@ -133,11 +172,16 @@ graph TB
     Api --> Market[Market Data Controller]
     Api --> Subs[Subscription Controller]
     Api --> Users[User Controller]
+    Api --> Auth[Auth Controller]
     Api --> Catalog[Data Catalog Controller]
     Api --> Payments[Payment Controller]
+    Api --> Access[API Access Controller]
     Api --> Docs[OpenAPI / Swagger UI]
 
     Users --> UserSvc[User Service]
+    Auth --> AuthSvc[Auth Service]
+    AuthSvc --> Jwt[JWT Service]
+    Jwt --> Filter[JWT Authentication Filter]
     Users --> EntSvc[User Entitlement Service]
     Catalog --> CatalogSvc[Data Catalog Service]
     Payments --> PaymentSvc[Payment Service]
@@ -148,6 +192,11 @@ graph TB
     Webhook --> Payments
     Payments --> WebhookSvc[Payment Webhook Service]
     WebhookSvc --> EntSvc
+    Access --> ApiKeySvc[API Keys Service]
+    ApiKeySvc --> KeyRepo[API Key Repositories]
+    ApiKeySvc --> EntSvc
+    AuthSvc --> ApiKeySvc
+    AuthSvc --> UserSvc
 
     Market --> LegacySvc[Legacy Services]
     Subs --> LegacySvc
@@ -157,6 +206,7 @@ graph TB
     CatalogSvc --> Repos
     PaymentSvc --> Repos
     WebhookSvc --> Repos
+    KeyRepo --> Repos
     Repos --> Db[(Relational Database)]
 
     subgraph Local
@@ -168,6 +218,11 @@ graph TB
         Api --> Docker[Docker Compose Stack]
     end
 ```
+
+More architecture documentation:
+- [Architecture Overview](./ARCHITECTURE.md)
+- [Architecture Decision Records](./docs/adr)
+- [Architecture Diagrams](./docs/diagrams/architecture-overview.md)
 
 ## Project Structure
 
@@ -200,8 +255,8 @@ The Dockerized Java 21 test workflow is also verified:
 ```
 
 Current automated coverage includes:
-- Controller tests for market data, subscriptions, users, catalog, and payments
-- Service tests for market data, subscriptions, user creation, catalog creation, entitlement grants, payment initiation, asynchronous checkout, and webhook completion paths
+- Controller tests for market data, subscriptions, users, authentication, catalog, payments, and API access
+- Service tests for market data, subscriptions, user creation, authentication, catalog creation, API key issuance, entitlement grants, payment initiation, asynchronous checkout, and webhook completion paths
 - Full Spring Boot startup test against the H2 configuration
 
 ## Building for Production
