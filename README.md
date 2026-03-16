@@ -15,7 +15,7 @@ This project is a REST API backend service built with Spring Boot that handles s
 
 ## Prerequisites
 
-- Java 17 or higher
+- Java 21 or higher
 - Maven 3.6+
 - Docker and Docker Compose (for production database)
 

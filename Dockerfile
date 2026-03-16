@@ -1,5 +1,5 @@
-# Use OpenJDK 17 as base image
-FROM openjdk:17-jdk-slim
+# Use current Java LTS for both build and runtime
+FROM eclipse-temurin:21-jdk-jammy
 
 # Set working directory
 WORKDIR /app
