@@ -70,6 +70,23 @@ class MarketDataControllerTest {
     }
 
     @Test
+    void testGetMarketDataRuntime() throws Exception {
+        when(marketDataService.getRuntimeStatus())
+                .thenReturn(new com.example.springbootjavarefresh.dto.MarketDataRuntimeStatusResponse(
+                        "stub",
+                        true,
+                        "Delta Lake is isolated from runtime."
+                ));
+
+        mockMvc.perform(get("/api/market-data/runtime"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mode").value("stub"))
+                .andExpect(jsonPath("$.stubbed").value(true));
+
+        verify(marketDataService, times(1)).getRuntimeStatus();
+    }
+
+    @Test
     @WithMockUser(roles = "ADMIN")
     void testCreateMarketData() throws Exception {
         MarketData data = new MarketData("AAPL", BigDecimal.valueOf(150.00), 1000L, MarketDataType.CRYPTO);

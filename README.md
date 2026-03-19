@@ -1,6 +1,6 @@
 # Market Data Lake
 
-Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, asynchronous Stripe-backed payment flows, and administration. Market data is stored in Delta Lake, while transactional application state stays in a relational store backed by H2 for local and containerized runtime flows.
+Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, asynchronous Stripe-backed payment flows, and administration. Delta Lake is currently isolated from active runtime, development, and deployment while market-data endpoints are served from a preview stub and transactional application state stays in H2.
 
 ## Features
 
@@ -8,15 +8,14 @@ Market Data Lake is a Spring Boot backend with a separate Next.js web UI for mar
 - Market Data management (CRUD operations)
 - Legacy subscription management for Market Data
 - User management with profile fields such as email, first name, last name, company, country, and phone number
-- Full authentication system with password hashing, JWT bearer tokens, and stateless security filters
+- Full authentication system with password hashing, email verification, JWT bearer tokens, and stateless security filters
 - Data Catalog service for listing and managing purchasable data products
 - User entitlement tracking for subscription and one-time product access
 - API key issuance for user registration and login flows
 - API key usage tracking with per-product quota enforcement for batch downloads and realtime subscriptions
 - Usage history tables that can later support billing, forecasting, and audit reporting
 - Asynchronous Stripe checkout session creation and webhook-based payment completion
-- Delta Lake as the main market data storage system
-- Market data partitioning by `marketDate` and `dataType`
+- Preview market-data stubs for runtime and development
 - H2 database for transactional local development and containerized runtime
 - Separate Next.js web UI running in its own Docker container
 - Docker containerization
@@ -33,7 +32,7 @@ Market Data Lake is a Spring Boot backend with a separate Next.js web UI for mar
 - Catalog administrators create `DataProduct` records that define price, currency, purchase mode, and billing interval.
 - Catalog administrators can also define quota limits such as batch download megabytes, realtime subscription counts, and payload caps.
 - Clients create `User` records and query `/api/catalog/products` to discover available offerings.
-- Credential-based registration and login return a JWT for management APIs and an API key for downstream data access.
+- Credential-based registration sends an email verification link first, and verified users can then log in to receive a JWT for management APIs and an API key for downstream data access.
 - Checkout requests create `PaymentTransaction` records immediately and then start Stripe session creation asynchronously.
 - Stripe webhooks finalize payments and grant `UserEntitlement` access for subscriptions and one-time purchases.
 - API access registration and login flows mint API keys for users, and each usage event is written into dedicated usage tables while entitlement limits are enforced.
@@ -58,17 +57,15 @@ The service will be available at `http://localhost:8080`
 
 Local execution uses:
 - H2 for transactional application state
-- a filesystem Delta table for market data at `MARKETDATA_DELTA_PATH`
+- an in-memory preview stub for market-data responses
 
 ### Containerized Runtime
 
 1. Run `docker-compose up -d` or `./scripts/run.sh`
-2. The application container mounts a shared Delta volume at `/data/delta`
-3. The application writes market data to `/data/delta/market_data`
-4. Transactional application state is stored in an H2 file mounted at `/data/h2/market-data-lake`
-5. The separate web UI is available at `http://localhost:3000`
-
-The Docker Compose stack includes the official Delta Lake image pinned to the stable `deltaio/delta-docker:4.0.0` tag.
+2. Transactional application state is stored in an H2 file mounted at `/data/h2/market-data-lake`
+3. Market-data endpoints are served from the in-memory preview stub
+4. The separate web UI is available at `http://localhost:3000`
+5. Local email capture is available at `http://localhost:8025` through Mailpit
 
 ### Stripe Configuration
 
@@ -100,6 +97,21 @@ JWT signing is configured with:
 - `security.jwt.secret`
 - `security.jwt.expiration-hours`
 
+Email verification and SMTP are configured with:
+
+- `app.auth.verification-base-url`
+- `app.auth.verification-expiration-hours`
+- `app.mail.from`
+- `spring.mail.host`
+- `spring.mail.port`
+- `spring.mail.username`
+- `spring.mail.password`
+
+In Docker runtime, Mailpit is started automatically for local verification testing:
+
+- SMTP: `localhost:1025`
+- Mail UI: `http://localhost:8025`
+
 All management endpoints are protected by bearer authentication unless explicitly documented as public.
 Public endpoints include `/api/auth/**`, `/api/access/register`, `/api/access/login`, `/api/access/usage`, `/api/access/usage/summary`, and `/api/payments/webhook`.
 
@@ -108,7 +120,7 @@ Public endpoints include `/api/auth/**`, `/api/access/register`, `/api/access/lo
 The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It provides:
 
 - signup, signin, and signout flows
-- catalog browsing and market-data browsing
+- catalog browsing and market-data preview browsing
 - Stripe checkout initiation and transaction polling
 - entitlement and API key visibility for signed-in users
 - administration views for dashboard, product creation, market-data insertion, and audit activity
@@ -118,9 +130,10 @@ The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It
 ### Market Data
 
 - `GET /api/market-data` - Get all market data
+- `GET /api/market-data/runtime` - Get the current market-data runtime mode and stub status
 - `GET /api/market-data/{id}` - Get market data by ID
 - `GET /api/market-data/symbol/{symbol}` - Get market data by symbol
-- `POST /api/market-data` - Create new market data stored in Delta Lake
+- `POST /api/market-data` - Create a new preview market-data row in the stub runtime
 - `DELETE /api/market-data/{id}` - Delete market data by ID
 
 ### Subscriptions
@@ -140,8 +153,9 @@ The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It
 
 ### Authentication
 
-- `POST /api/auth/register` - Register with password credentials and receive a JWT plus API key
-- `POST /api/auth/login` - Authenticate with email/password and receive a JWT plus API key
+- `POST /api/auth/register` - Register with password credentials and send an email verification link
+- `GET /api/auth/verify-email?token=...` - Verify the email address for a registered user
+- `POST /api/auth/login` - Authenticate a verified user and receive a JWT plus API key
 - `GET /api/auth/me` - Get the currently authenticated user profile
 - `GET /api/auth/me/entitlements` - Get the currently authenticated user's entitlements
 - `POST /api/auth/logout` - Client-side signout endpoint
@@ -175,12 +189,14 @@ The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It
 
 ### Example Commerce Flow
 
-1. Register or sign in with `POST /api/auth/register` or `POST /api/auth/login` to get a bearer token and API key.
-2. Use the bearer token to create or query catalog products with `POST /api/catalog/products` or `GET /api/catalog/products`.
-3. Start checkout with `POST /api/payments/checkout`.
-4. Poll `GET /api/payments/{id}` until Stripe session creation completes.
-5. Let Stripe call `POST /api/payments/webhook` to mark the transaction successful and grant entitlements.
-6. Submit usage events through `POST /api/access/usage` and inspect remaining quota with `GET /api/access/usage/summary`.
+1. Register with `POST /api/auth/register`.
+2. Open the verification email from Mailpit or your configured SMTP inbox and call `GET /api/auth/verify-email?token=...`.
+3. Sign in with `POST /api/auth/login` to get a bearer token and API key.
+4. Use the bearer token to create or query catalog products with `POST /api/catalog/products` or `GET /api/catalog/products`.
+5. Start checkout with `POST /api/payments/checkout`.
+6. Poll `GET /api/payments/{id}` until Stripe session creation completes.
+7. Let Stripe call `POST /api/payments/webhook` to mark the transaction successful and grant entitlements.
+8. Submit usage events through `POST /api/access/usage` and inspect remaining quota with `GET /api/access/usage/summary`.
 
 ## API Documentation
 
@@ -193,22 +209,22 @@ The API is documented using OpenAPI 3.0. Access the Swagger UI at `http://localh
 - URL: `jdbc:h2:file:/data/h2/market-data-lake` in Docker Compose
 - Console: `http://localhost:8080/h2-console`
 
-### Market Data Lake Storage
-- Path: `${MARKETDATA_DELTA_PATH}`
-- Local default: `${java.io.tmpdir}/mdl-delta/market_data`
-- Docker Compose path: `/data/delta/market_data`
-- Partition columns: `marketDate`, `dataType`
+### Market Data Preview Runtime
+- Toggle: `${MARKETDATA_STUB_ENABLED}`
+- Default: `true`
+- Backing store: in-memory stub data managed by the application runtime
 
 ## Domain Model
 
 - `User` stores the customer identity and contact fields used by the commerce flow.
-- `User` also stores password hashes and roles for credential-based authentication.
+- `User` also stores password hashes, email verification state, and roles for credential-based authentication.
+- `EmailVerificationToken` stores hashed verification tokens, expiration times, and usage timestamps for one-time email confirmation.
 - `DataProduct` represents a sellable data offering, including code, price, currency, access type, billing interval, and API usage quotas.
 - `PaymentTransaction` tracks asynchronous checkout creation and final payment status.
 - `UserEntitlement` records which products a user can access, whether acquired as a recurring subscription or one-time purchase, and how much quota has already been consumed.
 - `ApiKey` stores issued credentials per user without persisting the raw token, only a hash and prefix.
 - `ApiKeyUsageRecord` stores auditable usage events for later billing, prediction, and audit reporting.
-- `MarketData` is stored as Delta Lake records with `marketDate` and `dataType` partitions to support efficient time-sliced market data access.
+- `MarketData` is currently served through a preview stub so UI, checkout, and entitlement flows can evolve independently from future lake-storage work.
 
 ## Architecture
 
@@ -246,8 +262,8 @@ graph TB
     AuthSvc --> UserSvc
 
     Market --> MarketSvc[Market Data Service]
-    MarketSvc --> DeltaStore[Delta Lake Market Data Store]
-    DeltaStore --> Delta[(Delta Lake Market Data)]
+    MarketSvc --> StubStore[Stub Market Data Store]
+    StubStore --> Preview[(Preview Market Data)]
     Subs --> LegacySvc
     LegacySvc --> Repos[Repositories]
     UserSvc --> Repos
@@ -260,13 +276,10 @@ graph TB
 
     subgraph Local
         Db --> H2[H2 In-Memory]
-        Delta --> LocalFs[Local Delta Files]
     end
 
     subgraph Containerized
         Db --> H2File[H2 File Store]
-        Delta --> DeltaVolume[Shared Delta Volume]
-        DeltaVolume --> DeltaContainer[deltaio/delta-docker:4.0.0]
         Api --> Docker[Docker Compose Stack]
         Frontend --> Docker
     end
@@ -287,7 +300,7 @@ src/
 │   │       ├── controller/     # REST controllers
 │   │       ├── entity/         # Domain models and JPA entities
 │   │       ├── repository/     # Relational repositories
-│   │       ├── service/        # Business logic and Delta Lake storage adapters
+│   │       ├── service/        # Business logic, stubs, payments, and catalog flows
 │   │       └── SpringBootJavaRefreshApplication.java
 │   └── resources/
 │       ├── application.properties
@@ -338,7 +351,7 @@ Or use the helper scripts in `scripts/`:
 
 Verified workflow:
 - `./scripts/build.sh` builds the backend and frontend Docker images
-- `./scripts/run.sh` starts the Delta Lake container, backend API, and frontend UI with Docker Compose
+- `./scripts/run.sh` starts the backend API and frontend UI with Docker Compose
 - `./scripts/test.sh` runs the Maven backend tests and the Next.js frontend tests
 - `./scripts/logs.sh app` tails container logs
 - `./scripts/shutdown.sh` stops and removes the stack

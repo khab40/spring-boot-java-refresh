@@ -31,7 +31,7 @@ describe("ProductCard", () => {
     expect(screen.getByText("Options Pro")).toBeInTheDocument();
     expect(screen.getByDisplayValue("2")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Checkout"));
+    fireEvent.click(screen.getByText("Checkout with Stripe"));
     expect(onCheckout).toHaveBeenCalledTimes(1);
   });
 });

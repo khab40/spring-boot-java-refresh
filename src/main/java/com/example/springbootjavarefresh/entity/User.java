@@ -58,6 +58,12 @@ public class User implements UserDetails {
     @Column(name = "role", nullable = false)
     private UserRole role = UserRole.USER;
 
+    @Column(name = "email_verified")
+    private Boolean emailVerified;
+
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -68,6 +74,9 @@ public class User implements UserDetails {
         }
         if (role == null) {
             role = UserRole.USER;
+        }
+        if (emailVerified == null) {
+            emailVerified = Boolean.FALSE;
         }
     }
 
@@ -151,6 +160,26 @@ public class User implements UserDetails {
         this.createdAt = createdAt;
     }
 
+    public Boolean getEmailVerified() {
+        return emailVerified;
+    }
+
+    public boolean isEmailVerified() {
+        return Boolean.TRUE.equals(emailVerified);
+    }
+
+    public void setEmailVerified(Boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public LocalDateTime getEmailVerifiedAt() {
+        return emailVerifiedAt;
+    }
+
+    public void setEmailVerifiedAt(LocalDateTime emailVerifiedAt) {
+        this.emailVerifiedAt = emailVerifiedAt;
+    }
+
     @Override
     @JsonIgnore
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -190,6 +219,6 @@ public class User implements UserDetails {
     @Override
     @JsonIgnore
     public boolean isEnabled() {
-        return true;
+        return emailVerified == null || emailVerified;
     }
 }

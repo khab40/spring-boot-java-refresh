@@ -1,6 +1,7 @@
 package com.example.springbootjavarefresh.controller;
 
 import com.example.springbootjavarefresh.dto.AuthResponse;
+import com.example.springbootjavarefresh.dto.EmailVerificationResponse;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
 import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.entity.UserEntitlement;
@@ -58,7 +59,7 @@ class AuthControllerTest {
     @Test
     void shouldRegisterUser() throws Exception {
         when(authService.register(any()))
-                .thenReturn(new AuthResponse(1L, "auth@example.com", "jwt-token", "Bearer", "mdr_key"));
+                .thenReturn(new AuthResponse(1L, "auth@example.com", null, null, null, false, "Check your email"));
 
         mockMvc.perform(post("/api/auth/register")
                         .with(csrf())
@@ -72,14 +73,14 @@ class AuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").value("jwt-token"))
-                .andExpect(jsonPath("$.apiKey").value("mdr_key"));
+                .andExpect(jsonPath("$.emailVerified").value(false))
+                .andExpect(jsonPath("$.message").value("Check your email"));
     }
 
     @Test
     void shouldLoginUser() throws Exception {
         when(authService.login(any()))
-                .thenReturn(new AuthResponse(1L, "auth@example.com", "jwt-token", "Bearer", "mdr_key"));
+                .thenReturn(new AuthResponse(1L, "auth@example.com", "jwt-token", "Bearer", "mdr_key", true, "Signed in successfully."));
 
         mockMvc.perform(post("/api/auth/login")
                         .with(csrf())
@@ -113,6 +114,35 @@ class AuthControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals("auth@example.com", response.getBody().email());
+    }
+
+    @Test
+    void shouldVerifyEmail() throws Exception {
+        when(authService.verifyEmail("token"))
+                .thenReturn(new EmailVerificationResponse(true, "auth@example.com", "Email verified. You can now sign in.", null));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/auth/verify-email")
+                        .param("token", "token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.verified").value(true))
+                .andExpect(jsonPath("$.email").value("auth@example.com"));
+    }
+
+    @Test
+    void shouldResendVerificationEmail() throws Exception {
+        when(authService.resendVerificationEmail("auth@example.com"))
+                .thenReturn(new com.example.springbootjavarefresh.dto.MessageResponse("Verification email sent. Check your inbox."));
+
+        mockMvc.perform(post("/api/auth/resend-verification")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "auth@example.com"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Verification email sent. Check your inbox."));
     }
 
     @Test

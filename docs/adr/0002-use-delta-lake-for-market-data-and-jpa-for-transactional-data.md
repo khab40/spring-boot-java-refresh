@@ -1,5 +1,5 @@
 # ADR-0002: Use Delta Lake for Market Data and Spring Data JPA with H2 for Transactional Data
-Status: Accepted  
+Status: Superseded  
 Date: 2026-03-16
 
 ## Context
@@ -11,19 +11,19 @@ The service manages two materially different persistence workloads. Market data 
 3. Delta Lake only for every domain
 
 ## Decision
-Market data is stored in Delta Lake, partitioned by `marketDate` and `dataType`. Transactional domains continue to use Spring Data JPA with H2 for local, test, and containerized runtime execution.
+The original direction was to store market data in Delta Lake, partitioned by `marketDate` and `dataType`, while transactional domains used Spring Data JPA with H2. That direction is currently isolated from active runtime, development, and deployment in favor of a stubbed market-data runtime while the team concentrates on UI, catalog, checkout, and entitlement flows.
 
 ## Consequences
 Positive:
-- A lake-oriented storage layout for market data
-- Partition pruning by date and data type for common market data access patterns
+- A clear long-term direction for lake-style market data storage
+- A useful future partitioning model by date and data type
 - Fast local startup and test execution for transactional flows with H2
 - Minimal repository boilerplate for transactional domains through Spring Data JPA
 
 Negative:
-- The application now operates with two persistence models instead of one
-- Delta Lake access adds Spark and Delta runtime dependencies
-- Operational discipline is needed to keep lake schemas and transactional schemas aligned where domains interact
+- The original plan introduced a second persistence model into the application
+- Delta Lake access added Spark and Delta runtime dependencies
+- The team later isolated this work to speed up UI and Stripe delivery
 
 ## Related Documents
 - [Architecture Overview](../../ARCHITECTURE.md)

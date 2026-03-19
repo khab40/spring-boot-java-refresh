@@ -1,5 +1,6 @@
 package com.example.springbootjavarefresh.service;
 
+import com.example.springbootjavarefresh.dto.MarketDataRuntimeStatusResponse;
 import com.example.springbootjavarefresh.entity.MarketData;
 import org.springframework.stereotype.Service;
 
@@ -34,5 +35,13 @@ public class MarketDataService {
 
     public void deleteMarketData(Long id) {
         marketDataStore.deleteById(id);
+    }
+
+    public MarketDataRuntimeStatusResponse getRuntimeStatus() {
+        return new MarketDataRuntimeStatusResponse(
+                marketDataStore.getMode(),
+                marketDataStore.isStubMode(),
+                marketDataStore.getStatusMessage()
+        );
     }
 }

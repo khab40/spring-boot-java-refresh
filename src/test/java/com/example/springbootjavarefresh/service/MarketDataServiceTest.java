@@ -1,5 +1,6 @@
 package com.example.springbootjavarefresh.service;
 
+import com.example.springbootjavarefresh.dto.MarketDataRuntimeStatusResponse;
 import com.example.springbootjavarefresh.entity.MarketData;
 import com.example.springbootjavarefresh.entity.MarketDataType;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,5 +77,18 @@ class MarketDataServiceTest {
         marketDataService.deleteMarketData(1L);
 
         verify(marketDataStore, times(1)).deleteById(1L);
+    }
+
+    @Test
+    void testGetRuntimeStatus() {
+        when(marketDataStore.getMode()).thenReturn("stub");
+        when(marketDataStore.isStubMode()).thenReturn(true);
+        when(marketDataStore.getStatusMessage()).thenReturn("Stub mode enabled.");
+
+        MarketDataRuntimeStatusResponse result = marketDataService.getRuntimeStatus();
+
+        assertEquals("stub", result.mode());
+        assertTrue(result.stubbed());
+        assertEquals("Stub mode enabled.", result.message());
     }
 }

@@ -9,6 +9,7 @@ import {
   DataProduct,
   Entitlement,
   MarketData,
+  MarketDataRuntimeStatus,
   PaymentTransaction,
   SessionState,
   UserProfile
@@ -85,6 +86,7 @@ export function MarketDataLakeShell() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [products, setProducts] = useState<DataProduct[]>([]);
   const [marketData, setMarketData] = useState<MarketData[]>([]);
+  const [marketDataRuntime, setMarketDataRuntime] = useState<MarketDataRuntimeStatus | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlement[]>([]);
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
@@ -95,6 +97,7 @@ export function MarketDataLakeShell() {
   const [busy, setBusy] = useState(false);
   const [productForm, setProductForm] = useState<AdminProductForm>(defaultProductForm);
   const [marketDataForm, setMarketDataForm] = useState<MarketDataForm>(defaultMarketDataForm);
+  const passwordTooShort = authForm.password.length > 0 && authForm.password.length < 8;
 
   useEffect(() => {
     const stored = loadSession();
@@ -121,10 +124,15 @@ export function MarketDataLakeShell() {
 
   async function refreshPublicData() {
     try {
-      const [catalog, feed] = await Promise.all([api.products(), api.marketData()]);
+      const [catalog, feed, runtime] = await Promise.all([
+        api.products(),
+        api.marketData(),
+        api.marketDataRuntime()
+      ]);
       setProducts(catalog);
       setMarketData(feed);
-      setMessage("Catalog and market data are live.");
+      setMarketDataRuntime(runtime);
+      setMessage("Catalog is live and market-data previews are available.");
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     }
@@ -154,6 +162,12 @@ export function MarketDataLakeShell() {
   }
 
   async function handleAuthSubmit() {
+    if (passwordTooShort) {
+      setError("Password must be at least 8 characters long.");
+      setMessage("");
+      return;
+    }
+
     setBusy(true);
     setError("");
     setMessage("");
@@ -167,10 +181,17 @@ export function MarketDataLakeShell() {
               password: authForm.password
             };
       const response = authMode === "signup" ? await api.register(payload) : await api.login(payload);
-      const nextSession = await buildSession(response);
-      setSession(nextSession);
-      setMessage(authMode === "signup" ? "Account created and signed in." : "Signed in successfully.");
+      if (response.accessToken && response.apiKey) {
+        const nextSession = await buildSession(response);
+        setSession(nextSession);
+      } else {
+        setSession(null);
+      }
+      setMessage(response.message || (authMode === "signup" ? "Account created." : "Signed in successfully."));
       setAuthForm(defaultAuthForm);
+      if (authMode === "signup") {
+        setAuthMode("signin");
+      }
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -203,7 +224,7 @@ export function MarketDataLakeShell() {
 
     setBusy(true);
     setError("");
-    setCheckoutStatus(`Creating checkout for ${product.code}...`);
+      setCheckoutStatus(`Creating Stripe checkout for ${product.code}...`);
 
     try {
       const origin = typeof window === "undefined" ? "http://localhost:3000" : window.location.origin;
@@ -266,7 +287,7 @@ export function MarketDataLakeShell() {
         requestCount: quantities[product.id] ?? 1,
         notes: `Recorded from Market Data Lake UI for ${product.code}`
       });
-      setMessage(`Usage recorded for ${product.code}.`);
+      setMessage(`Delivery usage recorded for ${product.code}.`);
       if (session.accessToken) {
         setEntitlements(await api.myEntitlements(session.accessToken));
       }
@@ -327,7 +348,7 @@ export function MarketDataLakeShell() {
       );
       setMarketDataForm(defaultMarketDataForm);
       await refreshPublicData();
-      setMessage("Market data row inserted into Delta Lake.");
+      setMessage("Preview market-data row published into the stub runtime.");
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -351,8 +372,8 @@ export function MarketDataLakeShell() {
           <div className="hero-badges">
             <span className="badge">Next.js UI container</span>
             <span className="badge">Java API backend</span>
-            <span className="badge">Delta Lake market data</span>
-            <span className="badge">JWT + API key access</span>
+            <span className="badge">Stripe sandbox checkout</span>
+            <span className="badge">Stub market-data preview</span>
           </div>
         </div>
         <div className="hero-card">
@@ -444,6 +465,11 @@ export function MarketDataLakeShell() {
                       value={authForm.password}
                       onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
                     />
+                    {passwordTooShort ? (
+                      <div className="helper" role="alert">
+                        Password must be at least 8 characters long.
+                      </div>
+                    ) : null}
                   </div>
                   {authMode === "signup" ? (
                     <>
@@ -473,7 +499,7 @@ export function MarketDataLakeShell() {
                     </>
                   ) : null}
                   <button className="button" onClick={handleAuthSubmit} disabled={busy}>
-                    {authMode === "signup" ? "Create account and issue API key" : "Sign in and issue API key"}
+                    {authMode === "signup" ? "Create account and send verification email" : "Sign in and issue API key"}
                   </button>
                 </div>
               </div>
@@ -481,7 +507,7 @@ export function MarketDataLakeShell() {
                 <strong>What this session unlocks</strong>
                 <div className="meta-list">
                   <span>Catalog and market data browsing remain open for evaluation.</span>
-                  <span>Authenticated users can start checkout and track entitlements.</span>
+                  <span>Authenticated users can start Stripe checkout and track entitlements.</span>
                   <span>API key based usage recording supports stream and batch quota control.</span>
                   <span>Admin users get dashboard, product creation, and audit access.</span>
                 </div>
@@ -538,7 +564,7 @@ export function MarketDataLakeShell() {
           <div>
             <h2>Data Catalog</h2>
             <div className="panel-intro">
-              Explore unit pricing, delivery mode, and quota limits before starting checkout.
+              Explore unit pricing, delivery mode, and quota limits before launching Stripe checkout.
             </div>
           </div>
         </div>
@@ -562,12 +588,18 @@ export function MarketDataLakeShell() {
       <section className="panel" id="market-data">
         <div className="section-header">
           <div>
-            <h2>Market Data Lake</h2>
+            <h2>Market Data Preview</h2>
             <div className="panel-intro">
-              Delta-backed market data grouped by data type with date-partitioned storage underneath.
+              Preview-only market-data cards are currently served from a stub runtime while the team focuses on shop
+              flows, Stripe, and entitlement UX.
             </div>
           </div>
         </div>
+        {marketDataRuntime ? (
+          <div className="status warn">
+            {marketDataRuntime.message}
+          </div>
+        ) : null}
         <div className="market-grid">
           {Object.entries(groupedMarketData).map(([dataType, rows]) => (
             <div className="market-card" key={dataType}>
@@ -654,7 +686,7 @@ export function MarketDataLakeShell() {
             </div>
 
             <div className="panel">
-              <h3>Insert market data</h3>
+              <h3>Publish preview market data</h3>
               <div className="form-grid">
                 <div className="form-row">
                   <Field label="Symbol" value={marketDataForm.symbol} onChange={(value) => setMarketDataForm({ ...marketDataForm, symbol: value })} />
@@ -676,7 +708,7 @@ export function MarketDataLakeShell() {
                   type="datetime-local"
                 />
                 <button className="button" onClick={handleCreateMarketData} disabled={busy}>
-                  Write to Delta Lake
+                  Save preview row
                 </button>
               </div>
             </div>
@@ -686,7 +718,7 @@ export function MarketDataLakeShell() {
             <div className="header-bar">
               <div>
                 <h3>Recent payment activity</h3>
-                <div className="helper">Administrative audit view of checkout creation and payment state.</div>
+                <div className="helper">Administrative audit view of Stripe checkout creation and payment state.</div>
               </div>
             </div>
             <div className="activity-list">
@@ -738,7 +770,7 @@ export function MarketDataLakeShell() {
               <span>Status: {lastTransaction.status}</span>
               <span>Product: {lastTransaction.product.name}</span>
               <span>Amount: {formatMoney(lastTransaction.amount, lastTransaction.currency)}</span>
-              <span>Checkout URL: {lastTransaction.checkoutUrl || "Pending creation"}</span>
+              <span>Stripe checkout URL: {lastTransaction.checkoutUrl || "Pending creation"}</span>
               <span>Error: {lastTransaction.errorMessage || "None"}</span>
             </div>
           </div>

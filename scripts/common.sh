@@ -39,8 +39,26 @@ prepare_docker_env() {
   fi
 }
 
+prepare_docker_host() {
+  local docker_config_source context_name docker_host
+
+  if [[ -n "${DOCKER_HOST:-}" ]]; then
+    return
+  fi
+
+  docker_config_source="${DOCKER_CONFIG:-${HOME}/.docker}"
+  context_name="$(awk -F'"' '/"currentContext"[[:space:]]*:/ { print $4; exit }' "${docker_config_source}/config.json" 2>/dev/null || true)"
+  context_name="${context_name:-default}"
+
+  docker_host="$(docker context inspect "${context_name}" 2>/dev/null | awk -F'"' '/"Host"[[:space:]]*:/ { print $4; exit }' || true)"
+  if [[ -n "${docker_host}" ]]; then
+    export DOCKER_HOST="${docker_host}"
+  fi
+}
+
 load_env_file
 prepare_docker_env
+prepare_docker_host
 
 if docker compose version >/dev/null 2>&1; then
   DOCKER_COMPOSE_CMD=(docker compose)

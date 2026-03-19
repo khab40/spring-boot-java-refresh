@@ -3,6 +3,9 @@ package com.example.springbootjavarefresh.controller;
 import com.example.springbootjavarefresh.dto.AuthLoginRequest;
 import com.example.springbootjavarefresh.dto.AuthResponse;
 import com.example.springbootjavarefresh.dto.CreateUserRequest;
+import com.example.springbootjavarefresh.dto.EmailRequest;
+import com.example.springbootjavarefresh.dto.EmailVerificationResponse;
+import com.example.springbootjavarefresh.dto.MessageResponse;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
 import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.entity.UserEntitlement;
@@ -39,7 +42,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    @Operation(summary = "Register a user with password credentials and return a JWT plus API key")
+    @Operation(summary = "Register a user, persist them as unverified, and send a verification email")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody CreateUserRequest request) {
         return ResponseEntity.ok(authService.register(request));
     }
@@ -48,6 +51,18 @@ public class AuthController {
     @Operation(summary = "Authenticate a user and return a JWT plus API key")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthLoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @GetMapping("/verify-email")
+    @Operation(summary = "Verify an email address using the registration token")
+    public ResponseEntity<EmailVerificationResponse> verifyEmail(@RequestParam("token") String token) {
+        return ResponseEntity.ok(authService.verifyEmail(token));
+    }
+
+    @PostMapping("/resend-verification")
+    @Operation(summary = "Resend the email verification link for an existing unverified user")
+    public ResponseEntity<MessageResponse> resendVerification(@Valid @RequestBody EmailRequest request) {
+        return ResponseEntity.ok(authService.resendVerificationEmail(request.email()));
     }
 
     @GetMapping("/me")

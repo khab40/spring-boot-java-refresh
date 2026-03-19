@@ -5,5 +5,7 @@ public record AuthResponse(
         String email,
         String accessToken,
         String tokenType,
-        String apiKey) {
+        String apiKey,
+        boolean emailVerified,
+        String message) {
 }

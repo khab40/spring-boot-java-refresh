@@ -21,7 +21,8 @@ export function ProductCard({
   disabled
 }: ProductCardProps) {
   const total = Number(product.price) * quantity;
-  const actionLabel = product.accessType === "SUBSCRIPTION" ? "Record stream usage" : "Record download usage";
+  const actionLabel =
+    product.accessType === "SUBSCRIPTION" ? "Simulate stream delivery" : "Simulate dataset delivery";
 
   return (
     <article className="product-card">
@@ -41,7 +42,7 @@ export function ProductCard({
       </div>
       <div className="form-row">
         <div className="field">
-          <label htmlFor={`quantity-${product.id}`}>Volume units</label>
+          <label htmlFor={`quantity-${product.id}`}>License units</label>
           <input
             id={`quantity-${product.id}`}
             min={1}
@@ -57,7 +58,7 @@ export function ProductCard({
       </div>
       <div className="actions">
         <button className="button" onClick={() => onCheckout(product)} disabled={disabled}>
-          Checkout
+          Checkout with Stripe
         </button>
         {onUsageAction ? (
           <button className="ghost-button" onClick={() => onUsageAction(product)} disabled={disabled}>

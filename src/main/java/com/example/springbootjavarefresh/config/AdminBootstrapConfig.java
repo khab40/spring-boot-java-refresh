@@ -35,6 +35,8 @@ public class AdminBootstrapConfig {
             admin.setLastName(adminLastName);
             admin.setPasswordHash(passwordEncoder.encode(adminPassword));
             admin.setRole(UserRole.ADMIN);
+            admin.setEmailVerified(Boolean.TRUE);
+            admin.setEmailVerifiedAt(java.time.LocalDateTime.now());
             userRepository.save(admin);
         };
     }

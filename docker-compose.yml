@@ -1,33 +1,31 @@
 services:
-  delta-lake:
-    image: deltaio/delta-docker:4.0.0
-    container_name: market-data-lake-delta
-    command: ["sleep", "infinity"]
-    ports:
-      - "8888:8888"
-    volumes:
-      - delta_market_data:/data/delta
-
   app:
     build: .
     container_name: market-data-lake-app
     ports:
       - "8080:8080"
     depends_on:
-      - delta-lake
+      - mailpit
     environment:
       SPRING_DATASOURCE_URL: jdbc:h2:file:/data/h2/market-data-lake;DB_CLOSE_ON_EXIT=FALSE
       SPRING_DATASOURCE_USERNAME: sa
       SPRING_DATASOURCE_PASSWORD:
-      MARKETDATA_DELTA_PATH: /data/delta/market_data
+      MARKETDATA_STUB_ENABLED: "true"
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       APP_FRONTEND_ORIGIN: http://localhost:3000
       APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
       APP_ADMIN_FIRST_NAME: ${APP_ADMIN_FIRST_NAME:-Admin}
       APP_ADMIN_LAST_NAME: ${APP_ADMIN_LAST_NAME:-User}
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_USERNAME:
+      SPRING_MAIL_PASSWORD:
+      SPRING_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_SMTP_STARTTLS_ENABLE: "false"
+      APP_MAIL_FROM: ${APP_MAIL_FROM:-noreply@marketdatalake.local}
+      APP_AUTH_VERIFICATION_BASE_URL: ${APP_AUTH_VERIFICATION_BASE_URL:-http://localhost:8080/api/auth/verify-email}
     volumes:
-      - delta_market_data:/data/delta
       - app_relational_data:/data/h2
 
   frontend:
@@ -38,6 +36,12 @@ services:
     depends_on:
       - app
 
+  mailpit:
+    image: axllent/mailpit:v1.26
+    container_name: market-data-lake-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
-  delta_market_data:
   app_relational_data:

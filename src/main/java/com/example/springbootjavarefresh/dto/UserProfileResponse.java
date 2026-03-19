@@ -14,7 +14,9 @@ public record UserProfileResponse(
         String country,
         String phoneNumber,
         UserRole role,
-        LocalDateTime createdAt) {
+        boolean emailVerified,
+        LocalDateTime createdAt,
+        LocalDateTime emailVerifiedAt) {
 
     public static UserProfileResponse fromUser(User user) {
         return new UserProfileResponse(
@@ -26,7 +28,9 @@ public record UserProfileResponse(
                 user.getCountry(),
                 user.getPhoneNumber(),
                 user.getRole(),
-                user.getCreatedAt()
+                user.isEmailVerified(),
+                user.getCreatedAt(),
+                user.getEmailVerifiedAt()
         );
     }
 }

@@ -7,6 +7,18 @@ import java.util.Optional;
 
 public interface MarketDataStore {
 
+    default boolean isStubMode() {
+        return false;
+    }
+
+    default String getMode() {
+        return "active";
+    }
+
+    default String getStatusMessage() {
+        return "Market data is backed by the active runtime store.";
+    }
+
     List<MarketData> findAll();
 
     Optional<MarketData> findById(Long id);

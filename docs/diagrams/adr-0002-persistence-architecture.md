@@ -6,16 +6,14 @@ Related documents:
 
 ```mermaid
 graph LR
-    Api[Spring Boot Application] --> DeltaStore[Delta Lake Market Data Store]
+    Api[Spring Boot Application] --> StubStore[Stub Market Data Store]
     Api --> JPA[Spring Data JPA]
-    DeltaStore --> Delta[(Delta Lake)]
-    Delta --> DatePartition[marketDate]
-    Delta --> TypePartition[dataType]
+    StubStore --> Preview[(Preview Market Data)]
     JPA --> H2[(H2 Transactional State)]
     JPA --> Users[Users]
     JPA --> Products[Data Products]
     JPA --> Payments[Payment Transactions]
     JPA --> Entitlements[User Entitlements]
     JPA --> Keys[API Keys and Usage Records]
-    DeltaStore --> Market[Market Data]
+    StubStore --> Market[Market Data]
 ```

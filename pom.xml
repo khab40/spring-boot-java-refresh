@@ -15,7 +15,6 @@
     <description>Market Data Lake backend for market data delivery and commerce workflows</description>
     <properties>
         <java.version>21</java.version>
-        <delta.version>4.0.0</delta.version>
     </properties>
     <dependencies>
         <dependency>
@@ -32,22 +31,16 @@
             <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>io.delta</groupId>
-            <artifactId>delta-spark_2.13</artifactId>
-            <version>${delta.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql_2.13</artifactId>
-            <version>4.0.0</version>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>

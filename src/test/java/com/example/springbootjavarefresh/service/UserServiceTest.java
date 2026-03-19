@@ -61,6 +61,7 @@ class UserServiceTest {
         assertEquals("Quant Desk", persisted.getCompany());
         assertEquals("UK", persisted.getCountry());
         assertEquals("+44-555-000", persisted.getPhoneNumber());
+        assertEquals(false, persisted.isEmailVerified());
         assertEquals(7L, result.getId());
     }
 }

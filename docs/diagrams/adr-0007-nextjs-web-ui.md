@@ -11,6 +11,6 @@ graph LR
     Next --> Catalog[Catalog and Checkout Views]
     Next --> Admin[Admin and Audit Views]
     Next --> Api[Spring Boot REST API]
-    Api --> Delta[(Delta Lake)]
+    Api --> Stub[(Stub Market Data Runtime)]
     Api --> H2[(H2 Transaction Store)]
 ```

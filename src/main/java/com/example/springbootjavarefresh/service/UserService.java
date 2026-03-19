@@ -45,6 +45,8 @@ public class UserService {
         user.setCountry(request.getCountry());
         user.setPhoneNumber(request.getPhoneNumber());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setEmailVerified(Boolean.FALSE);
+        user.setEmailVerifiedAt(null);
         return userRepository.save(user);
     }
 }

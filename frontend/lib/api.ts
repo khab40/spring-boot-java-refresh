@@ -4,6 +4,7 @@ import {
   DataProduct,
   Entitlement,
   MarketData,
+  MarketDataRuntimeStatus,
   PaymentTransaction,
   SessionState,
   UsageSummary,
@@ -31,7 +32,12 @@ async function request<T>(path: string, init?: RequestInit, token?: string): Pro
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `${response.status} ${response.statusText}`);
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      throw new Error(parsed.message || text || `${response.status} ${response.statusText}`);
+    } catch {
+      throw new Error(text || `${response.status} ${response.statusText}`);
+    }
   }
 
   if (response.status === 204) {
@@ -60,6 +66,7 @@ export const api = {
   myEntitlements: (token: string) => request<Entitlement[]>("/api/auth/me/entitlements", undefined, token),
   products: () => request<DataProduct[]>("/api/catalog/products?activeOnly=true"),
   marketData: () => request<MarketData[]>("/api/market-data"),
+  marketDataRuntime: () => request<MarketDataRuntimeStatus>("/api/market-data/runtime"),
   checkout: (payload: Record<string, unknown>, token: string) =>
     send<PaymentTransaction>("/api/payments/checkout", "POST", payload, token),
   paymentStatus: (paymentId: number, token: string) =>
@@ -73,6 +80,10 @@ export const api = {
 };
 
 export async function buildSession(auth: AuthResponse): Promise<SessionState> {
+  if (!auth.accessToken || !auth.apiKey) {
+    throw new Error(auth.message || "Authentication response did not include a usable session.");
+  }
+
   const profile = await api.me(auth.accessToken);
   return {
     accessToken: auth.accessToken,

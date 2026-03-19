@@ -6,17 +6,17 @@ Market Data Lake is a Spring Boot backend for selling and serving market data pr
 Its current goals are:
 - Manage market data and legacy subscriptions
 - Maintain a purchasable data catalog
-- Handle users, authentication, and API key issuance
+- Handle users, email verification, authentication, and API key issuance
 - Process Stripe-based checkout flows
 - Enforce entitlement-based usage limits for data access
 - Persist usage records for future billing, forecasting, and audit reporting
 
 ## System Context
 The main actors and integrations are:
-- End users who register, authenticate, purchase data products, and consume data through API keys
+- End users who register, verify email ownership, authenticate, purchase data products, and consume data through API keys
 - Internal operators or administrators who manage catalog products and inspect users and entitlements
 - Stripe, which handles checkout sessions and sends payment webhooks
-- Delta Lake, which stores market data
+- A stub market-data runtime, which currently serves preview-only market data
 - H2, which stores transactional application state
 
 At present, the application is a single backend service. There is no separate API gateway, event streaming platform, data lake, or ML platform in the deployed implementation.
@@ -35,7 +35,7 @@ The main system diagram is available in:
 
 ## Key Components
 - Authentication layer
-JWT-based authentication with Spring Security, password hashing, and stateless bearer-token validation.
+JWT-based authentication with Spring Security, password hashing, email verification, and stateless bearer-token validation.
 - Web experience layer
 A separate Next.js frontend provides signup, signin, catalog, checkout, entitlement, and administration workflows.
 - API access layer
@@ -47,28 +47,29 @@ Stripe checkout session creation, payment transaction tracking, and webhook-driv
 - Catalog and entitlement domain
 Data products define pricing and quota limits; user entitlements represent purchased access and consumed quota.
 - Persistence layer
-Market data is stored in Delta Lake, partitioned by `marketDate` and `dataType`, while transactional domains stay in H2-backed Spring Data JPA repositories.
+Transactional domains stay in H2-backed Spring Data JPA repositories, while market data is currently served from an in-memory stub runtime so product and Stripe flows can evolve without a live lake dependency.
 
 ## Data Flow
 The primary data flows are:
 
-1. A user registers or logs in through `/api/auth/*`.
-2. The application validates credentials, stores password hashes, issues a JWT, and issues an API key.
-3. Catalog products are created or queried through `/api/catalog/products`.
-4. A purchase starts through `/api/payments/checkout`, which creates a payment transaction and asynchronously creates a Stripe Checkout session.
-5. Stripe sends webhook events to `/api/payments/webhook`.
-6. Successful payment events activate or update `UserEntitlement` records.
-7. Clients submit usage through `/api/access/usage`.
-8. The application resolves the API key, checks the user entitlement for the target product, enforces quota limits, updates usage counters, and writes an `ApiKeyUsageRecord`.
-9. Market data create, read, and delete flows use the Delta Lake storage adapter, which persists records into a Delta table partitioned by date and data type.
-10. The web UI runs in a separate container, calls the Java API over HTTP, and drives the end-user and admin flows without duplicating backend business rules.
+1. A user registers through `/api/auth/register`.
+2. The application stores the user, generates a one-time verification token, and sends a verification email.
+3. The user verifies the token through `/api/auth/verify-email`.
+4. The application validates credentials for verified users, issues a JWT, and issues an API key.
+5. Catalog products are created or queried through `/api/catalog/products`.
+6. A purchase starts through `/api/payments/checkout`, which creates a payment transaction and asynchronously creates a Stripe Checkout session.
+7. Stripe sends webhook events to `/api/payments/webhook`.
+8. Successful payment events activate or update `UserEntitlement` records.
+9. Clients submit usage through `/api/access/usage`.
+10. The application resolves the API key, checks the user entitlement for the target product, enforces quota limits, updates usage counters, and writes an `ApiKeyUsageRecord`.
+11. Market data create, read, and delete flows use a stub store that returns preview data and accepts admin-created preview rows.
+12. The web UI runs in a separate container, calls the Java API over HTTP, and drives the end-user and admin flows without duplicating backend business rules.
 
 ## Deployment Architecture
 The current deployment model is simple:
 - A separate Next.js web UI container
 - A single Spring Boot application process
-- The official Delta Lake Docker image pinned to `deltaio/delta-docker:4.0.0`
-- Delta Lake as the main market data store in Docker Compose through a shared mounted volume
+- A Mailpit container for local SMTP capture and verification testing
 - H2 for transactional local, test, and containerized execution
 - Docker-based scripts for build, test, run, logs, and shutdown
 
@@ -77,9 +78,9 @@ There is currently no Kubernetes cluster, service mesh, dedicated ingress tier, 
 ## Technology Stack
 - Frontend: React, Next.js, TypeScript
 - Backend: Java 21, Spring Boot, Spring MVC, Spring Data JPA, Spring Security
-- Authentication: BCrypt password hashing, JWT bearer tokens
+- Authentication: BCrypt password hashing, email verification, JWT bearer tokens
 - Payments: Stripe Checkout and webhook processing
-- Data: Delta Lake, Apache Spark, H2
+- Data: H2 plus in-memory market-data stubs
 - Build and Test: Maven, Docker, Docker Compose
 - API Documentation: springdoc OpenAPI / Swagger UI
 

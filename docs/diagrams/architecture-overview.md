@@ -19,11 +19,9 @@ graph TB
     Security --> Repositories[Spring Data JPA Repositories]
     Commerce --> Repositories
     Legacy --> Repositories
-    Market --> DeltaStore[Delta Lake Market Data Store]
-    DeltaStore --> Delta[(Delta Lake)]
+    Market --> StubStore[Stub Market Data Store]
+    StubStore --> Preview[(Preview Market Data)]
     Repositories --> H2[(H2 Transaction Store)]
-    Delta --> Partitioning[Partitions: marketDate, dataType]
     Scripts[Docker Helper Scripts] --> Api
     Scripts --> Next
-    Scripts --> DeltaContainer[deltaio/delta-docker:4.0.0]
 ```

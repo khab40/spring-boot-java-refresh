@@ -1,5 +1,6 @@
 package com.example.springbootjavarefresh.controller;
 
+import com.example.springbootjavarefresh.dto.MarketDataRuntimeStatusResponse;
 import com.example.springbootjavarefresh.entity.MarketData;
 import com.example.springbootjavarefresh.service.MarketDataService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +26,12 @@ public class MarketDataController {
     public ResponseEntity<List<MarketData>> getAllMarketData() {
         List<MarketData> marketData = marketDataService.getAllMarketData();
         return ResponseEntity.ok(marketData);
+    }
+
+    @GetMapping("/runtime")
+    @Operation(summary = "Get market data runtime mode")
+    public ResponseEntity<MarketDataRuntimeStatusResponse> getMarketDataRuntime() {
+        return ResponseEntity.ok(marketDataService.getRuntimeStatus());
     }
 
     @GetMapping("/{id}")

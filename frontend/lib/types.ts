@@ -9,15 +9,19 @@ export type UserProfile = {
   country?: string | null;
   phoneNumber?: string | null;
   role: UserRole;
+  emailVerified: boolean;
   createdAt?: string;
+  emailVerifiedAt?: string | null;
 };
 
 export type AuthResponse = {
   userId: number;
   email: string;
-  accessToken: string;
-  tokenType: string;
-  apiKey: string;
+  accessToken?: string | null;
+  tokenType?: string | null;
+  apiKey?: string | null;
+  emailVerified: boolean;
+  message: string;
 };
 
 export type DataProduct = {
@@ -43,6 +47,12 @@ export type MarketData = {
   timestamp: string;
   marketDate: string;
   dataType: "TICK" | "NEWS" | "FUNDAMENTALS" | "CRYPTO" | "OTHER";
+};
+
+export type MarketDataRuntimeStatus = {
+  mode: string;
+  stubbed: boolean;
+  message: string;
 };
 
 export type Entitlement = {
