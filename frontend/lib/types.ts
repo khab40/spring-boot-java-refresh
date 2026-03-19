@@ -1,4 +1,5 @@
 export type UserRole = "USER" | "ADMIN";
+export type AuthProvider = "LOCAL" | "GOOGLE";
 
 export type UserProfile = {
   id: number;
@@ -9,6 +10,7 @@ export type UserProfile = {
   country?: string | null;
   phoneNumber?: string | null;
   role: UserRole;
+  authProvider: AuthProvider;
   emailVerified: boolean;
   createdAt?: string;
   emailVerifiedAt?: string | null;

@@ -9,10 +9,11 @@ graph TB
     Client[Browser Clients] --> Next[Next.js Web UI]
     Admin[Operators and Admins] --> Api
     Stripe[Stripe Platform] --> Api
+    Google[Google Identity] --> Api
     Next --> Api[Spring Boot REST API]
     Api --> Controllers[Controllers]
     Controllers --> Services[Services]
-    Services --> Security[JWT Auth and API Key Access]
+    Services --> Security[JWT Auth OAuth2 and API Key Access]
     Services --> Commerce[Catalog Payments Entitlements]
     Services --> Market[Market Data Service]
     Services --> Legacy[Legacy Subscriptions]

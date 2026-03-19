@@ -51,8 +51,15 @@ public class User implements UserDetails {
     private String phoneNumber;
 
     @JsonIgnore
-    @Column(name = "password_hash", nullable = false)
+    @Column(name = "password_hash")
     private String passwordHash;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider")
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    @Column(name = "provider_subject")
+    private String providerSubject;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
@@ -77,6 +84,9 @@ public class User implements UserDetails {
         }
         if (emailVerified == null) {
             emailVerified = Boolean.FALSE;
+        }
+        if (authProvider == null) {
+            authProvider = AuthProvider.LOCAL;
         }
     }
 
@@ -142,6 +152,22 @@ public class User implements UserDetails {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public AuthProvider getAuthProvider() {
+        return authProvider == null ? AuthProvider.LOCAL : authProvider;
+    }
+
+    public void setAuthProvider(AuthProvider authProvider) {
+        this.authProvider = authProvider;
+    }
+
+    public String getProviderSubject() {
+        return providerSubject;
+    }
+
+    public void setProviderSubject(String providerSubject) {
+        this.providerSubject = providerSubject;
     }
 
     public UserRole getRole() {

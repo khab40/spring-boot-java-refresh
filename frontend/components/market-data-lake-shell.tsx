@@ -104,6 +104,19 @@ export function MarketDataLakeShell() {
     if (stored) {
       setSession(stored);
     }
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const authError = params.get("authError");
+      const authSuccess = params.get("authSuccess");
+      const messageParam = params.get("message");
+
+      if (authError) {
+        setError(messageParam || "Google sign-in failed.");
+      } else if (authSuccess === "google") {
+        setMessage(messageParam || "Signed in with Google successfully.");
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -501,6 +514,15 @@ export function MarketDataLakeShell() {
                   <button className="button" onClick={handleAuthSubmit} disabled={busy}>
                     {authMode === "signup" ? "Create account and send verification email" : "Sign in and issue API key"}
                   </button>
+                  <button
+                    className="ghost-button"
+                    onClick={() => {
+                      window.location.href = api.googleLoginUrl();
+                    }}
+                    disabled={busy}
+                  >
+                    Continue with Google
+                  </button>
                 </div>
               </div>
               <div className="form-card">
@@ -519,6 +541,7 @@ export function MarketDataLakeShell() {
               <div className="meta-list">
                 <span>{profile.email}</span>
                 <span>Role: {profile.role}</span>
+                <span>Sign-in: {profile.authProvider}</span>
                 <span>Company: {profile.company || "n/a"}</span>
                 <span>Country: {profile.country || "n/a"}</span>
               </div>

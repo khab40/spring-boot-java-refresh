@@ -11,7 +11,7 @@ import {
   UserProfile
 } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 type HttpMethod = "GET" | "POST";
 
@@ -62,6 +62,7 @@ export const api = {
   register: (payload: Record<string, unknown>) => send<AuthResponse>("/api/auth/register", "POST", payload),
   login: (payload: Record<string, unknown>) => send<AuthResponse>("/api/auth/login", "POST", payload),
   logout: (token: string) => send<void>("/api/auth/logout", "POST", {}, token),
+  googleLoginUrl: () => `${API_BASE_URL}/oauth2/authorization/google`,
   me: (token: string) => request<UserProfile>("/api/auth/me", undefined, token),
   myEntitlements: (token: string) => request<Entitlement[]>("/api/auth/me/entitlements", undefined, token),
   products: () => request<DataProduct[]>("/api/catalog/products?activeOnly=true"),

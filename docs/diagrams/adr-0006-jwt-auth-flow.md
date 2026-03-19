@@ -8,6 +8,7 @@ Related documents:
 sequenceDiagram
     participant User
     participant Auth as Auth Controller
+    participant Google as Google OAuth2
     participant Service as Auth Service
     participant Security as Spring Security
     participant JWT as JWT Service
@@ -18,6 +19,11 @@ sequenceDiagram
     Service->>Security: Compare BCrypt hash
     Service->>JWT: Issue bearer token
     Auth-->>User: JWT and API key
+    User->>Google: Or start Google sign-in
+    Google->>Security: Return OAuth2 user profile
+    Security->>Service: Link or create local user
+    Service->>JWT: Issue bearer token
+    Security-->>User: Redirect with JWT and API key
     User->>API: Request with Authorization header
     API->>Security: Run JWT filter
     Security->>JWT: Validate token

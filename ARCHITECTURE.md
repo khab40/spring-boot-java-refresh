@@ -6,7 +6,7 @@ Market Data Lake is a Spring Boot backend for selling and serving market data pr
 Its current goals are:
 - Manage market data and legacy subscriptions
 - Maintain a purchasable data catalog
-- Handle users, email verification, authentication, and API key issuance
+- Handle users, email verification, password and Google authentication, and API key issuance
 - Process Stripe-based checkout flows
 - Enforce entitlement-based usage limits for data access
 - Persist usage records for future billing, forecasting, and audit reporting
@@ -14,8 +14,10 @@ Its current goals are:
 ## System Context
 The main actors and integrations are:
 - End users who register, verify email ownership, authenticate, purchase data products, and consume data through API keys
+- End users who authenticate either with local credentials or Google OAuth2
 - Internal operators or administrators who manage catalog products and inspect users and entitlements
 - Stripe, which handles checkout sessions and sends payment webhooks
+- Google Identity, which handles OAuth2 login and returns verified user profile claims
 - A stub market-data runtime, which currently serves preview-only market data
 - H2, which stores transactional application state
 
@@ -29,13 +31,14 @@ Architecture decisions are recorded in:
 - [ADR-0005](./docs/adr/0005-use-api-keys-with-entitlement-based-usage-limits.md)
 - [ADR-0006](./docs/adr/0006-use-jwt-based-stateless-authentication.md)
 - [ADR-0007](./docs/adr/0007-use-nextjs-web-ui-in-a-separate-container.md)
+- [ADR-0008](./docs/adr/0008-use-google-oauth2-login-with-jwt-session-bridging.md)
 
 The main system diagram is available in:
 - [Architecture Overview Diagram](./docs/diagrams/architecture-overview.md)
 
 ## Key Components
 - Authentication layer
-JWT-based authentication with Spring Security, password hashing, email verification, and stateless bearer-token validation.
+JWT-based authentication with Spring Security, password hashing, email verification, optional Google OAuth2 login, and stateless bearer-token validation.
 - Web experience layer
 A separate Next.js frontend provides signup, signin, catalog, checkout, entitlement, and administration workflows.
 - API access layer
@@ -56,20 +59,22 @@ The primary data flows are:
 2. The application stores the user, generates a one-time verification token, and sends a verification email.
 3. The user verifies the token through `/api/auth/verify-email`.
 4. The application validates credentials for verified users, issues a JWT, and issues an API key.
-5. Catalog products are created or queried through `/api/catalog/products`.
-6. A purchase starts through `/api/payments/checkout`, which creates a payment transaction and asynchronously creates a Stripe Checkout session.
-7. Stripe sends webhook events to `/api/payments/webhook`.
-8. Successful payment events activate or update `UserEntitlement` records.
-9. Clients submit usage through `/api/access/usage`.
-10. The application resolves the API key, checks the user entitlement for the target product, enforces quota limits, updates usage counters, and writes an `ApiKeyUsageRecord`.
-11. Market data create, read, and delete flows use a stub store that returns preview data and accepts admin-created preview rows.
-12. The web UI runs in a separate container, calls the Java API over HTTP, and drives the end-user and admin flows without duplicating backend business rules.
+5. As an alternative, the user can start `GET /oauth2/authorization/google`, complete Google OAuth2 login, and receive the same application JWT and API key through the frontend callback flow.
+6. Catalog products are created or queried through `/api/catalog/products`.
+7. A purchase starts through `/api/payments/checkout`, which creates a payment transaction and asynchronously creates a Stripe Checkout session.
+8. Stripe sends webhook events to `/api/payments/webhook`.
+9. Successful payment events activate or update `UserEntitlement` records.
+10. Clients submit usage through `/api/access/usage`.
+11. The application resolves the API key, checks the user entitlement for the target product, enforces quota limits, updates usage counters, and writes an `ApiKeyUsageRecord`.
+12. Market data create, read, and delete flows use a stub store that returns preview data and accepts admin-created preview rows.
+13. The web UI runs in a separate container, calls the Java API over HTTP, and drives the end-user and admin flows without duplicating backend business rules.
 
 ## Deployment Architecture
 The current deployment model is simple:
 - A separate Next.js web UI container
 - A single Spring Boot application process
 - A Mailpit container for local SMTP capture and verification testing
+- Optional outbound OAuth2 integration with Google identity endpoints
 - H2 for transactional local, test, and containerized execution
 - Docker-based scripts for build, test, run, logs, and shutdown
 
@@ -78,7 +83,7 @@ There is currently no Kubernetes cluster, service mesh, dedicated ingress tier, 
 ## Technology Stack
 - Frontend: React, Next.js, TypeScript
 - Backend: Java 21, Spring Boot, Spring MVC, Spring Data JPA, Spring Security
-- Authentication: BCrypt password hashing, email verification, JWT bearer tokens
+- Authentication: BCrypt password hashing, email verification, Spring Security OAuth2 client for Google, JWT bearer tokens
 - Payments: Stripe Checkout and webhook processing
 - Data: H2 plus in-memory market-data stubs
 - Build and Test: Maven, Docker, Docker Compose
@@ -108,3 +113,4 @@ Related diagrams:
 - [ADR-0005 Diagram](./docs/diagrams/adr-0005-api-key-usage-limits.md)
 - [ADR-0006 Diagram](./docs/diagrams/adr-0006-jwt-auth-flow.md)
 - [ADR-0007 Diagram](./docs/diagrams/adr-0007-nextjs-web-ui.md)
+- [ADR-0008 Diagram](./docs/diagrams/adr-0008-google-oauth2-jwt-bridge.md)

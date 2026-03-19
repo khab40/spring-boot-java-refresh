@@ -1,6 +1,7 @@
 package com.example.springbootjavarefresh.dto;
 
 import com.example.springbootjavarefresh.entity.User;
+import com.example.springbootjavarefresh.entity.AuthProvider;
 import com.example.springbootjavarefresh.entity.UserRole;
 
 import java.time.LocalDateTime;
@@ -14,6 +15,7 @@ public record UserProfileResponse(
         String country,
         String phoneNumber,
         UserRole role,
+        AuthProvider authProvider,
         boolean emailVerified,
         LocalDateTime createdAt,
         LocalDateTime emailVerifiedAt) {
@@ -28,6 +30,7 @@ public record UserProfileResponse(
                 user.getCountry(),
                 user.getPhoneNumber(),
                 user.getRole(),
+                user.getAuthProvider(),
                 user.isEmailVerified(),
                 user.getCreatedAt(),
                 user.getEmailVerifiedAt()

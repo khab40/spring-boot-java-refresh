@@ -1,6 +1,6 @@
 # Market Data Lake
 
-Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, API key access control, data product cataloging, asynchronous Stripe-backed payment flows, and administration. Delta Lake is currently isolated from active runtime, development, and deployment while market-data endpoints are served from a preview stub and transactional application state stays in H2.
+Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, Google OAuth2 sign-in, API key access control, data product cataloging, asynchronous Stripe-backed payment flows, and administration. Delta Lake is currently isolated from active runtime, development, and deployment while market-data endpoints are served from a preview stub and transactional application state stays in H2.
 
 ## Features
 
@@ -8,7 +8,7 @@ Market Data Lake is a Spring Boot backend with a separate Next.js web UI for mar
 - Market Data management (CRUD operations)
 - Legacy subscription management for Market Data
 - User management with profile fields such as email, first name, last name, company, country, and phone number
-- Full authentication system with password hashing, email verification, JWT bearer tokens, and stateless security filters
+- Full authentication system with password hashing, email verification, Google OAuth2 sign-in, JWT bearer tokens, and stateless security filters
 - Data Catalog service for listing and managing purchasable data products
 - User entitlement tracking for subscription and one-time product access
 - API key issuance for user registration and login flows
@@ -33,6 +33,7 @@ Market Data Lake is a Spring Boot backend with a separate Next.js web UI for mar
 - Catalog administrators can also define quota limits such as batch download megabytes, realtime subscription counts, and payload caps.
 - Clients create `User` records and query `/api/catalog/products` to discover available offerings.
 - Credential-based registration sends an email verification link first, and verified users can then log in to receive a JWT for management APIs and an API key for downstream data access.
+- Google sign-in uses Spring Security OAuth2 login, links or creates a local user, and then issues the same application JWT and API key pair used by password-authenticated users.
 - Checkout requests create `PaymentTransaction` records immediately and then start Stripe session creation asynchronously.
 - Stripe webhooks finalize payments and grant `UserEntitlement` access for subscriptions and one-time purchases.
 - API access registration and login flows mint API keys for users, and each usage event is written into dedicated usage tables while entitlement limits are enforced.
@@ -107,19 +108,36 @@ Email verification and SMTP are configured with:
 - `spring.mail.username`
 - `spring.mail.password`
 
+Google OAuth2 login is configured with:
+
+- `app.auth.oauth2.success-url`
+- `app.auth.oauth2.failure-url`
+- `app.auth.google.client-id`
+- `app.auth.google.client-secret`
+- `app.auth.google.scopes`
+
+For local Google sandbox-style testing:
+
+1. Create a Google OAuth client in Google Cloud Console.
+2. Add `http://localhost:8080/login/oauth2/code/google` as an authorized redirect URI.
+3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`.
+4. Keep `APP_AUTH_OAUTH2_SUCCESS_URL=http://localhost:3000/oauth/callback`.
+5. Start the stack and use `Continue with Google` in the UI.
+
 In Docker runtime, Mailpit is started automatically for local verification testing:
 
 - SMTP: `localhost:1025`
 - Mail UI: `http://localhost:8025`
 
 All management endpoints are protected by bearer authentication unless explicitly documented as public.
-Public endpoints include `/api/auth/**`, `/api/access/register`, `/api/access/login`, `/api/access/usage`, `/api/access/usage/summary`, and `/api/payments/webhook`.
+Public endpoints include `/api/auth/**`, `/oauth2/**`, `/login/oauth2/**`, `/api/access/register`, `/api/access/login`, `/api/access/usage`, `/api/access/usage/summary`, and `/api/payments/webhook`.
 
 ### Web UI
 
 The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It provides:
 
 - signup, signin, and signout flows
+- Google sign-in with OAuth2 callback handling in the frontend
 - catalog browsing and market-data preview browsing
 - Stripe checkout initiation and transaction polling
 - entitlement and API key visibility for signed-in users
@@ -155,10 +173,12 @@ The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It
 
 - `POST /api/auth/register` - Register with password credentials and send an email verification link
 - `GET /api/auth/verify-email?token=...` - Verify the email address for a registered user
+- `POST /api/auth/resend-verification` - Reissue a verification email for an unverified password-based account
 - `POST /api/auth/login` - Authenticate a verified user and receive a JWT plus API key
 - `GET /api/auth/me` - Get the currently authenticated user profile
 - `GET /api/auth/me/entitlements` - Get the currently authenticated user's entitlements
 - `POST /api/auth/logout` - Client-side signout endpoint
+- `GET /oauth2/authorization/google` - Start Google OAuth2 login and redirect to Google consent
 
 ### Data Catalog
 
@@ -198,6 +218,14 @@ The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It
 7. Let Stripe call `POST /api/payments/webhook` to mark the transaction successful and grant entitlements.
 8. Submit usage events through `POST /api/access/usage` and inspect remaining quota with `GET /api/access/usage/summary`.
 
+### Example Google Sign-In Flow
+
+1. Click `Continue with Google` in the web UI or open `GET /oauth2/authorization/google`.
+2. Complete Google consent and return to `/login/oauth2/code/google`.
+3. The backend links or creates the local `User`, marks the account as verified, and issues a JWT plus API key.
+4. The backend redirects to the frontend OAuth callback page.
+5. The frontend stores the returned session and resumes the signed-in UI state.
+
 ## API Documentation
 
 The API is documented using OpenAPI 3.0. Access the Swagger UI at `http://localhost:8080/swagger-ui.html` when the service is running.
@@ -217,7 +245,7 @@ The API is documented using OpenAPI 3.0. Access the Swagger UI at `http://localh
 ## Domain Model
 
 - `User` stores the customer identity and contact fields used by the commerce flow.
-- `User` also stores password hashes, email verification state, and roles for credential-based authentication.
+- `User` also stores password hashes, email verification state, roles, and identity-provider fields for local and Google-based authentication.
 - `EmailVerificationToken` stores hashed verification tokens, expiration times, and usage timestamps for one-time email confirmation.
 - `DataProduct` represents a sellable data offering, including code, price, currency, access type, billing interval, and API usage quotas.
 - `PaymentTransaction` tracks asynchronous checkout creation and final payment status.
@@ -244,6 +272,8 @@ graph TB
     Users --> UserSvc[User Service]
     Auth --> AuthSvc[Auth Service]
     AuthSvc --> Jwt[JWT Service]
+    Auth --> OAuth2[Google OAuth2 Login]
+    OAuth2 --> AuthSvc
     Jwt --> Filter[JWT Authentication Filter]
     Users --> EntSvc[User Entitlement Service]
     Catalog --> CatalogSvc[Data Catalog Service]

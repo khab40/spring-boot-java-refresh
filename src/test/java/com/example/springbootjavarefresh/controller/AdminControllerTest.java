@@ -5,6 +5,7 @@ import com.example.springbootjavarefresh.dto.AdminEntitlementSummaryResponse;
 import com.example.springbootjavarefresh.dto.AdminPaymentSummaryResponse;
 import com.example.springbootjavarefresh.dto.AdminUsageSummaryResponse;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
+import com.example.springbootjavarefresh.entity.AuthProvider;
 import com.example.springbootjavarefresh.entity.UserRole;
 import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
 import com.example.springbootjavarefresh.service.AdminAuditService;
@@ -52,7 +53,7 @@ class AdminControllerTest {
                 6,
                 7,
                 2,
-                List.of(new UserProfileResponse(1L, "admin@example.com", "Admin", "User", null, null, null, UserRole.ADMIN, true, null, null)),
+                List.of(new UserProfileResponse(1L, "admin@example.com", "Admin", "User", null, null, null, UserRole.ADMIN, AuthProvider.LOCAL, true, null, null)),
                 List.of(new AdminPaymentSummaryResponse(10L, 1L, "trader@example.com", 20L, "FX-STREAM", new BigDecimal("99.00"), "usd", null, null, null, LocalDateTime.now(), LocalDateTime.now())),
                 List.of(new AdminUsageSummaryResponse(11L, 1L, "trader@example.com", 20L, "FX-STREAM", null, new BigDecimal("25.00"), 0L, 0, 1, null, LocalDateTime.now())),
                 List.of(new AdminEntitlementSummaryResponse(12L, 1L, "trader@example.com", 20L, "FX-STREAM", null, null, LocalDateTime.now(), null, new BigDecimal("0.00"), 0, 0L))
