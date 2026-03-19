@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, buildSession } from "../lib/api";
 import { describeProductMode, formatDate, formatMoney } from "../lib/format";
 import { loadSession, saveSession } from "../lib/storage";
@@ -97,6 +97,7 @@ export function MarketDataLakeShell() {
   const [busy, setBusy] = useState(false);
   const [productForm, setProductForm] = useState<AdminProductForm>(defaultProductForm);
   const [marketDataForm, setMarketDataForm] = useState<MarketDataForm>(defaultMarketDataForm);
+  const privateRequestVersion = useRef(0);
   const passwordTooShort = authForm.password.length > 0 && authForm.password.length < 8;
 
   useEffect(() => {
@@ -124,6 +125,8 @@ export function MarketDataLakeShell() {
   }, []);
 
   useEffect(() => {
+    const requestVersion = ++privateRequestVersion.current;
+
     if (!session?.accessToken) {
       setEntitlements([]);
       setDashboard(null);
@@ -132,7 +135,7 @@ export function MarketDataLakeShell() {
     }
 
     saveSession(session);
-    void refreshPrivateData(session);
+    void refreshPrivateData(session, requestVersion);
   }, [session]);
 
   async function refreshPublicData() {
@@ -151,9 +154,13 @@ export function MarketDataLakeShell() {
     }
   }
 
-  async function refreshPrivateData(nextSession: SessionState) {
+  async function refreshPrivateData(nextSession: SessionState, requestVersion: number) {
     try {
       const profile = await api.me(nextSession.accessToken);
+      if (privateRequestVersion.current !== requestVersion) {
+        return;
+      }
+
       const updatedSession = {
         ...nextSession,
         profile
@@ -161,10 +168,16 @@ export function MarketDataLakeShell() {
       setSession(updatedSession);
 
       const userEntitlements = await api.myEntitlements(nextSession.accessToken);
+      if (privateRequestVersion.current !== requestVersion) {
+        return;
+      }
       setEntitlements(userEntitlements);
 
       if (profile.role === "ADMIN") {
         const adminDashboard = await api.adminDashboard(nextSession.accessToken);
+        if (privateRequestVersion.current !== requestVersion) {
+          return;
+        }
         setDashboard(adminDashboard);
       } else {
         setDashboard(null);
@@ -213,6 +226,8 @@ export function MarketDataLakeShell() {
   }
 
   async function handleLogout() {
+    privateRequestVersion.current += 1;
+
     if (session?.accessToken) {
       try {
         await api.logout(session.accessToken);
