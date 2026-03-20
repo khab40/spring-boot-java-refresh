@@ -7,6 +7,7 @@ import { loadPendingCheckoutId, loadSession, savePendingCheckoutId, saveSession 
 import {
   AdminDashboard,
   CatalogItem,
+  CatalogFilters,
   DataProduct,
   Entitlement,
   MarketData,
@@ -80,6 +81,16 @@ type ProfileForm = {
   phoneNumber: string;
 };
 
+const defaultCatalogFilters: CatalogFilters = {
+  symbol: "*",
+  availableFrom: "",
+  availableTo: "",
+  marketDataType: "",
+  storageSystem: "",
+  accessType: "",
+  billingInterval: ""
+};
+
 type AccessSummary = {
   key: number;
   product: DataProduct;
@@ -151,6 +162,7 @@ export function MarketDataLakeShell() {
   const [authForm, setAuthForm] = useState<AuthForm>(defaultAuthForm);
   const [session, setSession] = useState<SessionState | null>(null);
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  const [catalogFilters, setCatalogFilters] = useState<CatalogFilters>(defaultCatalogFilters);
   const [selectedCatalogItemId, setSelectedCatalogItemId] = useState<number | null>(null);
   const [marketData, setMarketData] = useState<MarketData[]>([]);
   const [marketDataRuntime, setMarketDataRuntime] = useState<MarketDataRuntimeStatus | null>(null);
@@ -201,7 +213,7 @@ export function MarketDataLakeShell() {
   }, []);
 
   useEffect(() => {
-    void refreshPublicData();
+    void refreshPublicData(defaultCatalogFilters);
   }, []);
 
   useEffect(() => {
@@ -318,19 +330,44 @@ export function MarketDataLakeShell() {
     }
   }, [payments, selectedPaymentId]);
 
-  async function refreshPublicData() {
+  async function refreshPublicData(filters: CatalogFilters = catalogFilters) {
     try {
       const [items, feed, runtime] = await Promise.all([
-        api.catalogItems(),
+        api.catalogItems(filters),
         api.marketData(),
         api.marketDataRuntime()
       ]);
       setCatalogItems(items);
       setMarketData(feed);
       setMarketDataRuntime(runtime);
-      setMessage("Catalog metadata is live. Pick a dataset, select an access offer, and build a cart.");
+      setMessage(
+        items.length > 0
+          ? `Catalog metadata is live. ${items.length} dataset${items.length === 1 ? "" : "s"} matched the current search.`
+          : "No catalog items matched the current search."
+      );
     } catch (requestError) {
       setError(getErrorMessage(requestError));
+    }
+  }
+
+  async function handleCatalogSearch() {
+    setBusy(true);
+    setError("");
+    try {
+      await refreshPublicData(catalogFilters);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCatalogFilterReset() {
+    setCatalogFilters(defaultCatalogFilters);
+    setBusy(true);
+    setError("");
+    try {
+      await refreshPublicData(defaultCatalogFilters);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1029,7 +1066,69 @@ export function MarketDataLakeShell() {
           <div className="section-header">
             <div>
               <h2>Data Catalog</h2>
-              <div className="panel-intro">Catalog items represent what is available in the lake, independent from pricing and purchase packaging.</div>
+              <div className="panel-intro">
+                Catalog items represent what is available in the lake, independent from pricing and purchase packaging.
+              </div>
+            </div>
+          </div>
+          <div className="card compact-card">
+            <div className="form-row">
+              <Field
+                label="Symbol or *"
+                value={catalogFilters.symbol}
+                onChange={(value) => setCatalogFilters((current) => ({ ...current, symbol: value }))}
+                placeholder="AAPL or *"
+              />
+              <Field
+                label="Available from"
+                value={catalogFilters.availableFrom}
+                onChange={(value) => setCatalogFilters((current) => ({ ...current, availableFrom: value }))}
+                type="datetime-local"
+              />
+              <Field
+                label="Available to"
+                value={catalogFilters.availableTo}
+                onChange={(value) => setCatalogFilters((current) => ({ ...current, availableTo: value }))}
+                type="datetime-local"
+              />
+            </div>
+            <div className="form-row">
+              <SelectField
+                label="Data type"
+                value={catalogFilters.marketDataType}
+                options={[":Any data type", "QUOTE:QUOTE", "TICK:TICK", "NEWS:NEWS", "FUNDAMENTALS:FUNDAMENTALS", "CRYPTO:CRYPTO", "OTHER:OTHER"]}
+                onChange={(value) => setCatalogFilters((current) => ({ ...current, marketDataType: value as CatalogFilters["marketDataType"] }))}
+                optionValueMode="split-id"
+              />
+              <SelectField
+                label="Storage"
+                value={catalogFilters.storageSystem}
+                options={[":Any storage", "DELTA_LAKE:DELTA_LAKE", "ICEBERG:ICEBERG", "STUB:STUB", "OTHER:OTHER"]}
+                onChange={(value) => setCatalogFilters((current) => ({ ...current, storageSystem: value as CatalogFilters["storageSystem"] }))}
+                optionValueMode="split-id"
+              />
+              <SelectField
+                label="Offer mode"
+                value={catalogFilters.accessType}
+                options={[":Any offer mode", "ONE_TIME_PURCHASE:One-time purchase", "SUBSCRIPTION:Subscription"]}
+                onChange={(value) => setCatalogFilters((current) => ({ ...current, accessType: value as CatalogFilters["accessType"] }))}
+                optionValueMode="split-id"
+              />
+              <SelectField
+                label="Billing"
+                value={catalogFilters.billingInterval}
+                options={[":Any billing", "ONE_TIME:One-time", "MONTHLY:Monthly", "YEARLY:Yearly"]}
+                onChange={(value) => setCatalogFilters((current) => ({ ...current, billingInterval: value as CatalogFilters["billingInterval"] }))}
+                optionValueMode="split-id"
+              />
+            </div>
+            <div className="actions">
+              <button className="button" onClick={handleCatalogSearch} disabled={busy}>
+                Search catalog
+              </button>
+              <button className="ghost-button" onClick={handleCatalogFilterReset} disabled={busy}>
+                Clear filters
+              </button>
             </div>
           </div>
           <div className="catalog-list">
@@ -1491,21 +1590,23 @@ function Field({
   value,
   onChange,
   textarea,
-  type = "text"
+  type = "text",
+  placeholder
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   textarea?: boolean;
   type?: string;
+  placeholder?: string;
 }) {
   return (
     <div className="field">
       <label>{label}</label>
       {textarea ? (
-        <textarea value={value} onChange={(event) => onChange(event.target.value)} />
+        <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
       ) : (
-        <input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+        <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
       )}
     </div>
   );

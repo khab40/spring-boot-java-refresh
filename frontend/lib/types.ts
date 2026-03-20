@@ -60,6 +60,16 @@ export type CatalogItem = {
   offers: DataProduct[];
 };
 
+export type CatalogFilters = {
+  symbol: string;
+  availableFrom: string;
+  availableTo: string;
+  marketDataType: "" | CatalogItem["marketDataType"];
+  storageSystem: "" | CatalogItem["storageSystem"];
+  accessType: "" | DataProduct["accessType"];
+  billingInterval: "" | DataProduct["billingInterval"];
+};
+
 export type MarketData = {
   id: number;
   symbol: string;

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -71,6 +72,49 @@ class DataCatalogControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].code").value("US-EQ-QUOTE"))
                 .andExpect(jsonPath("$[0].storageSystem").value("DELTA_LAKE"));
+    }
+
+    @Test
+    void shouldReturnFilteredCatalogItems() throws Exception {
+        CatalogItemResponse item = new CatalogItemResponse(
+                7L,
+                "AAPL-QUOTE",
+                "AAPL Quotes",
+                "Apple quote history",
+                "Apple quote history in the lake",
+                MarketDataType.QUOTE.name(),
+                DataCatalogStorage.DELTA_LAKE.name(),
+                "/api/market-data/query",
+                "lake.aapl_quotes",
+                "AAPL",
+                null,
+                null,
+                true,
+                null,
+                List.of()
+        );
+        when(dataCatalogService.searchCatalogItems(
+                eq(true),
+                eq("AAPL"),
+                any(),
+                any(),
+                eq(MarketDataType.QUOTE),
+                eq(DataCatalogStorage.DELTA_LAKE),
+                eq(ProductAccessType.SUBSCRIPTION),
+                eq(BillingInterval.MONTHLY)
+        )).thenReturn(List.of(item));
+
+        mockMvc.perform(get("/api/catalog/items")
+                        .param("activeOnly", "true")
+                        .param("symbol", "AAPL")
+                        .param("availableFrom", "2026-03-01T09:30:00")
+                        .param("availableTo", "2026-03-31T16:00:00")
+                        .param("marketDataType", "QUOTE")
+                        .param("storageSystem", "DELTA_LAKE")
+                        .param("accessType", "SUBSCRIPTION")
+                        .param("billingInterval", "MONTHLY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("AAPL-QUOTE"));
     }
 
     @Test

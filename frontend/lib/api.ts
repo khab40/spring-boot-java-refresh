@@ -2,6 +2,7 @@ import {
   AdminDashboard,
   AuthResponse,
   CatalogItem,
+  CatalogFilters,
   DataProduct,
   Entitlement,
   MarketData,
@@ -60,6 +61,32 @@ function send<T>(path: string, method: HttpMethod, body?: unknown, token?: strin
   );
 }
 
+function toQueryString(filters: CatalogFilters) {
+  const params = new URLSearchParams({ activeOnly: "true" });
+  if (filters.symbol.trim() && filters.symbol.trim() !== "*") {
+    params.set("symbol", filters.symbol.trim());
+  }
+  if (filters.availableFrom) {
+    params.set("availableFrom", filters.availableFrom);
+  }
+  if (filters.availableTo) {
+    params.set("availableTo", filters.availableTo);
+  }
+  if (filters.marketDataType) {
+    params.set("marketDataType", filters.marketDataType);
+  }
+  if (filters.storageSystem) {
+    params.set("storageSystem", filters.storageSystem);
+  }
+  if (filters.accessType) {
+    params.set("accessType", filters.accessType);
+  }
+  if (filters.billingInterval) {
+    params.set("billingInterval", filters.billingInterval);
+  }
+  return params.toString();
+}
+
 export const api = {
   register: (payload: Record<string, unknown>) => send<AuthResponse>("/api/auth/register", "POST", payload),
   login: (payload: Record<string, unknown>) => send<AuthResponse>("/api/auth/login", "POST", payload),
@@ -69,7 +96,8 @@ export const api = {
   updateMe: (payload: UpdateUserProfilePayload, token: string) => send<UserProfile>("/api/auth/me", "PUT", payload, token),
   myEntitlements: (token: string) => request<Entitlement[]>("/api/auth/me/entitlements", undefined, token),
   myPayments: (token: string) => request<PaymentTransaction[]>("/api/auth/me/payments", undefined, token),
-  catalogItems: () => request<CatalogItem[]>("/api/catalog/items?activeOnly=true"),
+  catalogItems: (filters?: CatalogFilters) =>
+    request<CatalogItem[]>(`/api/catalog/items?${filters ? toQueryString(filters) : "activeOnly=true"}`),
   products: () => request<DataProduct[]>("/api/catalog/products?activeOnly=true"),
   marketData: () => request<MarketData[]>("/api/market-data"),
   marketDataRuntime: () => request<MarketDataRuntimeStatus>("/api/market-data/runtime"),

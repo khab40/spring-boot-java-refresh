@@ -18,6 +18,9 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
@@ -106,5 +109,70 @@ class DataCatalogServiceTest {
         assertEquals(MarketDataType.QUOTE, persisted.getMarketDataType());
         assertEquals("lake.us_equities_quotes", persisted.getLakeQueryReference());
         assertEquals(20L, result.getId());
+    }
+
+    @Test
+    void shouldFilterCatalogItemsBySymbolCoverageAndOfferMode() {
+        DataCatalogItem aapl = new DataCatalogItem();
+        aapl.setId(1L);
+        aapl.setCode("AAPL-QUOTE");
+        aapl.setName("AAPL Quotes");
+        aapl.setSummary("Apple quote history");
+        aapl.setDescription("Historical Apple quotes");
+        aapl.setMarketDataType(MarketDataType.QUOTE);
+        aapl.setStorageSystem(DataCatalogStorage.DELTA_LAKE);
+        aapl.setSampleSymbols("AAPL,MSFT");
+        aapl.setCoverageStartDate(LocalDate.of(2026, 3, 1));
+        aapl.setCoverageEndDate(LocalDate.of(2026, 3, 31));
+        aapl.setActive(true);
+
+        DataCatalogItem meta = new DataCatalogItem();
+        meta.setId(2L);
+        meta.setCode("META-QUOTE");
+        meta.setName("META Quotes");
+        meta.setSummary("Meta quote history");
+        meta.setDescription("Historical Meta quotes");
+        meta.setMarketDataType(MarketDataType.QUOTE);
+        meta.setStorageSystem(DataCatalogStorage.DELTA_LAKE);
+        meta.setSampleSymbols("META");
+        meta.setCoverageStartDate(LocalDate.of(2026, 1, 1));
+        meta.setCoverageEndDate(LocalDate.of(2026, 1, 31));
+        meta.setActive(true);
+
+        DataProduct matchingOffer = new DataProduct();
+        matchingOffer.setId(11L);
+        matchingOffer.setCode("AAPL-STREAM");
+        matchingOffer.setName("AAPL Stream");
+        matchingOffer.setAccessType(ProductAccessType.SUBSCRIPTION);
+        matchingOffer.setBillingInterval(BillingInterval.MONTHLY);
+        matchingOffer.setActive(true);
+
+        DataProduct nonMatchingOffer = new DataProduct();
+        nonMatchingOffer.setId(12L);
+        nonMatchingOffer.setCode("META-DOWNLOAD");
+        nonMatchingOffer.setName("META Download");
+        nonMatchingOffer.setAccessType(ProductAccessType.ONE_TIME_PURCHASE);
+        nonMatchingOffer.setBillingInterval(BillingInterval.ONE_TIME);
+        nonMatchingOffer.setActive(true);
+
+        when(dataCatalogItemRepository.findByActiveTrueOrderByNameAsc()).thenReturn(List.of(aapl, meta));
+        when(dataProductRepository.findByCatalogItem_IdOrderByPriceAsc(1L)).thenReturn(List.of(matchingOffer));
+        when(dataProductRepository.findByCatalogItem_IdOrderByPriceAsc(2L)).thenReturn(List.of(nonMatchingOffer));
+
+        List<com.example.springbootjavarefresh.dto.CatalogItemResponse> results = dataCatalogService.searchCatalogItems(
+                true,
+                "AAPL",
+                LocalDateTime.of(2026, 3, 5, 9, 30),
+                LocalDateTime.of(2026, 3, 20, 16, 0),
+                MarketDataType.QUOTE,
+                DataCatalogStorage.DELTA_LAKE,
+                ProductAccessType.SUBSCRIPTION,
+                BillingInterval.MONTHLY
+        );
+
+        assertEquals(1, results.size());
+        assertEquals("AAPL-QUOTE", results.getFirst().code());
+        assertEquals(1, results.getFirst().offers().size());
+        assertEquals("AAPL-STREAM", results.getFirst().offers().getFirst().getCode());
     }
 }
