@@ -72,6 +72,26 @@ type CartEntry = {
   quantity: number;
 };
 
+type ProfileForm = {
+  firstName: string;
+  lastName: string;
+  company: string;
+  country: string;
+  phoneNumber: string;
+};
+
+type AccessSummary = {
+  key: number;
+  product: DataProduct;
+  purchasedUnits: number;
+  batchDownloadUsedMb: number;
+  realtimeSubscriptionsUsed: number;
+  payloadKilobytesUsed: number;
+  grantedAt: string;
+  expiresAt?: string | null;
+  entitlementCount: number;
+};
+
 const defaultAuthForm: AuthForm = {
   email: "",
   password: "",
@@ -118,6 +138,14 @@ const defaultMarketDataForm: MarketDataForm = {
   dataType: "QUOTE"
 };
 
+const defaultProfileForm: ProfileForm = {
+  firstName: "",
+  lastName: "",
+  company: "",
+  country: "",
+  phoneNumber: ""
+};
+
 export function MarketDataLakeShell() {
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [authForm, setAuthForm] = useState<AuthForm>(defaultAuthForm);
@@ -131,6 +159,10 @@ export function MarketDataLakeShell() {
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [cart, setCart] = useState<Record<number, CartEntry>>({});
+  const [selectedAccessProductId, setSelectedAccessProductId] = useState<number | null>(null);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(null);
+  const [profileForm, setProfileForm] = useState<ProfileForm>(defaultProfileForm);
+  const [isUserDrawerOpen, setIsUserDrawerOpen] = useState(false);
   const [checkoutStatus, setCheckoutStatus] = useState("");
   const [lastTransaction, setLastTransaction] = useState<PaymentTransaction | null>(null);
   const [message, setMessage] = useState("Loading the Market Data Lake catalog.");
@@ -141,6 +173,7 @@ export function MarketDataLakeShell() {
   const [marketDataForm, setMarketDataForm] = useState<MarketDataForm>(defaultMarketDataForm);
   const privateRequestVersion = useRef(0);
   const passwordTooShort = authForm.password.length > 0 && authForm.password.length < 8;
+  const profile: UserProfile | null | undefined = session?.profile;
 
   useEffect(() => {
     const stored = loadSession();
@@ -229,6 +262,19 @@ export function MarketDataLakeShell() {
     () => catalogItems.find((item) => item.id === selectedCatalogItemId) ?? catalogItems[0] ?? null,
     [catalogItems, selectedCatalogItemId]
   );
+  const activeEntitlements = useMemo(
+    () => entitlements.filter((entitlement) => entitlement.status === "ACTIVE"),
+    [entitlements]
+  );
+  const accessSummaries = useMemo(() => aggregateEntitlements(activeEntitlements), [activeEntitlements]);
+  const selectedAccess = useMemo(
+    () => accessSummaries.find((entry) => entry.key === selectedAccessProductId) ?? accessSummaries[0] ?? null,
+    [accessSummaries, selectedAccessProductId]
+  );
+  const selectedPayment = useMemo(
+    () => payments.find((payment) => payment.id === selectedPaymentId) ?? payments[0] ?? null,
+    [payments, selectedPaymentId]
+  );
 
   const cartEntries = useMemo(() => Object.values(cart), [cart]);
   const cartTotal = useMemo(
@@ -244,6 +290,33 @@ export function MarketDataLakeShell() {
       setProductForm((current) => ({ ...current, catalogItemId: String(catalogItems[0].id) }));
     }
   }, [catalogItems, selectedCatalogItemId, productForm.catalogItemId]);
+
+  useEffect(() => {
+    if (!profile) {
+      setProfileForm(defaultProfileForm);
+      return;
+    }
+
+    setProfileForm({
+      firstName: profile.firstName || "",
+      lastName: profile.lastName || "",
+      company: profile.company || "",
+      country: profile.country || "",
+      phoneNumber: profile.phoneNumber || ""
+    });
+  }, [profile]);
+
+  useEffect(() => {
+    if (!selectedAccessProductId && accessSummaries.length > 0) {
+      setSelectedAccessProductId(accessSummaries[0].key);
+    }
+  }, [accessSummaries, selectedAccessProductId]);
+
+  useEffect(() => {
+    if (!selectedPaymentId && payments.length > 0) {
+      setSelectedPaymentId(payments[0].id);
+    }
+  }, [payments, selectedPaymentId]);
 
   async function refreshPublicData() {
     try {
@@ -355,6 +428,34 @@ export function MarketDataLakeShell() {
     setCheckoutStatus("");
     setLastTransaction(null);
     setMessage("Signed out.");
+  }
+
+  async function handleProfileSave() {
+    if (!session?.accessToken || !profile) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const updatedProfile = await api.updateMe(
+        {
+          firstName: profileForm.firstName.trim(),
+          lastName: profileForm.lastName.trim(),
+          company: profileForm.company.trim() || null,
+          country: profileForm.country.trim() || null,
+          phoneNumber: profileForm.phoneNumber.trim() || null
+        },
+        session.accessToken
+      );
+      setSession((current) => (current ? { ...current, profile: updatedProfile } : current));
+      setMessage("User profile updated.");
+      setIsUserDrawerOpen(false);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function handleAddToCart(product: DataProduct) {
@@ -629,53 +730,60 @@ export function MarketDataLakeShell() {
     }
   }
 
-  const profile: UserProfile | null | undefined = session?.profile;
   const groupedMarketData = groupMarketData(marketData);
 
   return (
     <main className="page-shell">
-      <section className="hero">
-        <div className="hero-card">
+      <section className="hero compact-hero">
+        <div className="hero-card hero-card-primary">
           <div className="eyebrow">Market Data Lake</div>
-          <h1>Catalog first. Lake metadata first. Checkout after selection.</h1>
-          <p>
-            The main storefront now distinguishes what exists in the data lake from how it is sold. Catalog items
-            describe datasets and query paths. Separate offers define one-time downloads or subscriptions that can be
-            added to the shopping cart and sent to Stripe checkout.
-          </p>
+          <div className="hero-topbar">
+            <div>
+              <h1>Modern market data lake for one-time delivery, live subscriptions, and AI-ready workflows.</h1>
+              <p>
+                Browse the catalog first, inspect data-lake coverage and query paths, then choose the commercial offer
+                that fits a one-time download, recurring refresh, or streaming subscription flow.
+              </p>
+            </div>
+            <button className="user-chip" onClick={() => setIsUserDrawerOpen(true)}>
+              <span className="user-chip-label">User</span>
+              <strong>{profile ? `${profile.firstName} ${profile.lastName}` : "Sign in"}</strong>
+            </button>
+          </div>
           <div className="hero-badges">
             <span className="badge">Catalog metadata</span>
-            <span className="badge">Sellable offers</span>
-            <span className="badge">Stripe cart checkout</span>
-            <span className="badge">Stub market-data preview</span>
+            <span className="badge">Stripe checkout</span>
+            <span className="badge">One-time and streaming offers</span>
+            <span className="badge">AI-ready lake products</span>
           </div>
         </div>
-        <div className="hero-card">
-          <div className="eyebrow">Session</div>
-          <h2>{profile ? `${profile.firstName} ${profile.lastName}` : "No active session"}</h2>
-          <p>
+        <div className="hero-card hero-card-compact">
+          <div className="eyebrow">Overview</div>
+          <div className="mini-stats-grid">
+            <div className="mini-stat">
+              <span>Catalog items</span>
+              <strong>{catalogItems.length}</strong>
+            </div>
+            <div className="mini-stat">
+              <span>Cart lines</span>
+              <strong>{cartEntries.length}</strong>
+            </div>
+            <div className="mini-stat">
+              <span>Active access</span>
+              <strong>{accessSummaries.length}</strong>
+            </div>
+            <div className="mini-stat">
+              <span>Payments</span>
+              <strong>{payments.length}</strong>
+            </div>
+          </div>
+          <div className="helper">
             {profile
-              ? `${profile.email} is signed in with role ${profile.role}. Add offers to the cart, launch checkout, and inspect entitlements or admin audit views.`
-              : "Register or sign in to unlock checkout, entitlements, API-key usage tracking, and administration views."}
-          </p>
-          <div className="actions">
-            {profile ? (
-              <button className="danger-button" onClick={handleLogout}>
-                Sign out
-              </button>
-            ) : (
-              <>
-                <button className="button" onClick={() => setAuthMode("signin")}>
-                  Sign in
-                </button>
-                <button className="secondary-button" onClick={() => setAuthMode("signup")}>
-                  Create account
-                </button>
-              </>
-            )}
+              ? `${profile.email} is signed in with ${profile.authProvider}.`
+              : "Open the user drawer to sign up, sign in, or continue with Google."}
           </div>
           {session?.apiKey ? (
-            <div className="token-block">
+            <div className="token-block compact-token">
               API key
               <code>{session.apiKey}</code>
             </div>
@@ -687,17 +795,25 @@ export function MarketDataLakeShell() {
       {message ? <div className="status info">{message}</div> : null}
       {checkoutStatus ? <div className="status warn">{checkoutStatus}</div> : null}
 
-      <section className="columns">
-        <div className="panel">
-          <div className="section-header">
-            <div>
-              <h2>Identity</h2>
-              <div className="panel-intro">Sign up, verify, sign in, and keep the browser session synced with JWT and API key state.</div>
+      {isUserDrawerOpen ? (
+        <div className="drawer-backdrop" onClick={() => setIsUserDrawerOpen(false)}>
+          <aside className="user-drawer" onClick={(event) => event.stopPropagation()}>
+            <div className="section-header">
+              <div>
+                <div className="eyebrow">User</div>
+                <h2>{profile ? "Identity and session" : "Sign in or create account"}</h2>
+                <div className="panel-intro">
+                  {profile
+                    ? "Update user details, inspect sign-in state, or sign out."
+                    : "Keep auth, verification, and Google sign-in out of the main storefront flow."}
+                </div>
+              </div>
+              <button className="ghost-button" onClick={() => setIsUserDrawerOpen(false)}>
+                Close
+              </button>
             </div>
-          </div>
-          {!profile ? (
-            <div className="auth-grid">
-              <div className="form-card">
+            {!profile ? (
+              <div className="form-grid">
                 <div className="pill-row">
                   <button className={authMode === "signin" ? "button" : "ghost-button"} onClick={() => setAuthMode("signin")}>
                     Sign in
@@ -706,37 +822,31 @@ export function MarketDataLakeShell() {
                     Sign up
                   </button>
                 </div>
-                <div className="form-grid">
-                  <div className="field">
-                    <label>Email</label>
-                    <input value={authForm.email} onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })} />
+                <Field label="Email" value={authForm.email} onChange={(value) => setAuthForm({ ...authForm, email: value })} />
+                {authMode === "signup" ? (
+                  <div className="form-row">
+                    <Field label="First name" value={authForm.firstName} onChange={(value) => setAuthForm({ ...authForm, firstName: value })} />
+                    <Field label="Last name" value={authForm.lastName} onChange={(value) => setAuthForm({ ...authForm, lastName: value })} />
                   </div>
-                  {authMode === "signup" ? (
+                ) : null}
+                <Field label="Password" value={authForm.password} onChange={(value) => setAuthForm({ ...authForm, password: value })} type="password" />
+                {passwordTooShort ? (
+                  <div className="helper" role="alert">
+                    Password must be at least 8 characters long.
+                  </div>
+                ) : null}
+                {authMode === "signup" ? (
+                  <>
                     <div className="form-row">
-                      <Field label="First name" value={authForm.firstName} onChange={(value) => setAuthForm({ ...authForm, firstName: value })} />
-                      <Field label="Last name" value={authForm.lastName} onChange={(value) => setAuthForm({ ...authForm, lastName: value })} />
+                      <Field label="Company" value={authForm.company} onChange={(value) => setAuthForm({ ...authForm, company: value })} />
+                      <Field label="Country" value={authForm.country} onChange={(value) => setAuthForm({ ...authForm, country: value })} />
                     </div>
-                  ) : null}
-                  <div className="field">
-                    <label>Password</label>
-                    <input type="password" value={authForm.password} onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })} />
-                    {passwordTooShort ? (
-                      <div className="helper" role="alert">
-                        Password must be at least 8 characters long.
-                      </div>
-                    ) : null}
-                  </div>
-                  {authMode === "signup" ? (
-                    <>
-                      <div className="form-row">
-                        <Field label="Company" value={authForm.company} onChange={(value) => setAuthForm({ ...authForm, company: value })} />
-                        <Field label="Country" value={authForm.country} onChange={(value) => setAuthForm({ ...authForm, country: value })} />
-                      </div>
-                      <Field label="Phone number" value={authForm.phoneNumber} onChange={(value) => setAuthForm({ ...authForm, phoneNumber: value })} />
-                    </>
-                  ) : null}
+                    <Field label="Phone number" value={authForm.phoneNumber} onChange={(value) => setAuthForm({ ...authForm, phoneNumber: value })} />
+                  </>
+                ) : null}
+                <div className="actions">
                   <button className="button" onClick={handleAuthSubmit} disabled={busy}>
-                    {authMode === "signup" ? "Create account and send verification email" : "Sign in and issue API key"}
+                    {authMode === "signup" ? "Create account" : "Sign in"}
                   </button>
                   <button
                     className="ghost-button"
@@ -749,89 +859,168 @@ export function MarketDataLakeShell() {
                   </button>
                 </div>
               </div>
-              <div className="form-card">
-                <strong>What the application now separates</strong>
-                <div className="meta-list">
-                  <span>Catalog items describe what datasets exist in the lake and how they can be queried.</span>
-                  <span>Offers describe the price, access mode, and quota package sold for each catalog item.</span>
-                  <span>The shopping cart aggregates offers before Stripe checkout instead of forcing one-off purchase actions.</span>
-                  <span>Market data preview remains separate from the catalog because it represents runtime content, not metadata.</span>
+            ) : (
+              <div className="form-grid">
+                <div className="card compact-card">
+                  <div className="meta-list">
+                    <span>{profile.email}</span>
+                    <span>Role: {profile.role}</span>
+                    <span>Provider: {profile.authProvider}</span>
+                    <span>Email verified: {profile.emailVerified ? "Yes" : "No"}</span>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <Field label="First name" value={profileForm.firstName} onChange={(value) => setProfileForm({ ...profileForm, firstName: value })} />
+                  <Field label="Last name" value={profileForm.lastName} onChange={(value) => setProfileForm({ ...profileForm, lastName: value })} />
+                </div>
+                <div className="form-row">
+                  <Field label="Company" value={profileForm.company} onChange={(value) => setProfileForm({ ...profileForm, company: value })} />
+                  <Field label="Country" value={profileForm.country} onChange={(value) => setProfileForm({ ...profileForm, country: value })} />
+                </div>
+                <Field label="Phone number" value={profileForm.phoneNumber} onChange={(value) => setProfileForm({ ...profileForm, phoneNumber: value })} />
+                {session?.apiKey ? (
+                  <div className="token-block compact-token">
+                    API key
+                    <code>{session.apiKey}</code>
+                  </div>
+                ) : null}
+                <div className="actions">
+                  <button className="button" onClick={handleProfileSave} disabled={busy}>
+                    Save profile
+                  </button>
+                  <button className="danger-button" onClick={handleLogout}>
+                    Sign out
+                  </button>
                 </div>
               </div>
+            )}
+          </aside>
+        </div>
+      ) : null}
+
+      <section className="grid dense-two-column">
+        <div className="panel">
+          <div className="section-header">
+            <div>
+              <h2>Your Access</h2>
+              <div className="panel-intro">Active access rights are merged by offer, so repeat purchases do not render as duplicates.</div>
             </div>
-          ) : (
-            <div className="card">
-              <strong>
-                {profile.firstName} {profile.lastName}
-              </strong>
-              <div className="meta-list">
-                <span>{profile.email}</span>
-                <span>Role: {profile.role}</span>
-                <span>Sign-in: {profile.authProvider}</span>
-                <span>Company: {profile.company || "n/a"}</span>
-                <span>Country: {profile.country || "n/a"}</span>
+          </div>
+          {profile ? (
+            accessSummaries.length > 0 ? (
+              <div className="split-panel">
+                <div className="catalog-list compact-list">
+                  {accessSummaries.map((entry) => (
+                    <button
+                      key={entry.key}
+                      className={`catalog-list-item ${selectedAccess?.key === entry.key ? "catalog-list-item-active" : ""}`}
+                      onClick={() => setSelectedAccessProductId(entry.key)}
+                    >
+                      <span className="catalog-list-title">{entry.product.name}</span>
+                      <span className="helper">{describeProductMode(entry.product)}</span>
+                      <span className="helper">{entry.purchasedUnits} unit{entry.purchasedUnits === 1 ? "" : "s"} active</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="card compact-card">
+                  {selectedAccess ? (
+                    <>
+                      <div className="pill-row">
+                        <span className="pill">{selectedAccess.product.code}</span>
+                        <span className="pill">{selectedAccess.product.accessType}</span>
+                      </div>
+                      <strong>{selectedAccess.product.name}</strong>
+                      <div className="meta-list compact-meta">
+                        <span>Purchased units: {selectedAccess.purchasedUnits}</span>
+                        <span>Batch used: {selectedAccess.batchDownloadUsedMb} MB</span>
+                        <span>Realtime used: {selectedAccess.realtimeSubscriptionsUsed}</span>
+                        <span>Payload used: {selectedAccess.payloadKilobytesUsed} KB</span>
+                        <span>Granted: {formatDate(selectedAccess.grantedAt)}</span>
+                        <span>Expires: {selectedAccess.expiresAt ? formatDate(selectedAccess.expiresAt) : "Open-ended"}</span>
+                        <span>Active entitlement rows merged: {selectedAccess.entitlementCount}</span>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="helper">No active entitlements yet. Complete checkout successfully to grant access.</div>
+            )
+          ) : (
+            <div className="helper">Sign in to view active entitlements and quota usage.</div>
           )}
         </div>
 
         <div className="panel">
           <div className="section-header">
             <div>
-              <h2>Your Access</h2>
-              <div className="panel-intro">Purchased or subscribed offers appear here with current usage and purchased unit counts.</div>
+              <h2>Shopping Cart</h2>
+              <div className="panel-intro">Keep cart and checkout visible while browsing the catalog.</div>
             </div>
           </div>
-          {profile ? (
-            entitlements.length > 0 || payments.length > 0 ? (
-              <div className="grid">
-                <div>
-                  <h3>Entitlements</h3>
-                  {entitlements.length > 0 ? (
-                    <div className="audit-grid">
-                      {entitlements.map((entitlement) => (
-                        <div className="activity-card" key={entitlement.id}>
-                          <strong>{entitlement.product.name}</strong>
-                          <div className="meta-list">
-                            <span>Status: {entitlement.status}</span>
-                            <span>Mode: {describeProductMode(entitlement.product)}</span>
-                            <span>Purchased units: {entitlement.purchasedUnits}</span>
-                            <span>Batch used: {entitlement.batchDownloadUsedMb} MB</span>
-                            <span>Realtime used: {entitlement.realtimeSubscriptionsUsed}</span>
-                            <span>Payload used: {entitlement.payloadKilobytesUsed} KB</span>
-                            <span>Granted: {formatDate(entitlement.grantedAt)}</span>
-                          </div>
-                        </div>
-                      ))}
+          {cartEntries.length > 0 ? (
+            <div className="activity-list compact-activity-list">
+              {cartEntries.map((entry) => (
+                <div className="activity-card compact-card" key={entry.product.id}>
+                  <div className="compact-card-header">
+                    <strong>{entry.product.name}</strong>
+                    <span className="pill">{formatMoney(Number(entry.product.price) * entry.quantity, entry.product.currency)}</span>
+                  </div>
+                  <div className="meta-list compact-meta">
+                    <span>{entry.catalogItemName}</span>
+                    <span>{describeProductMode(entry.product)}</span>
+                  </div>
+                  <div className="inline-form-row">
+                    <Field
+                      label="Units"
+                      value={String(entry.quantity)}
+                      onChange={(value) => updateCartQuantity(entry.product.id, Math.max(1, Number(value) || 1))}
+                      type="number"
+                    />
+                    <div className="actions compact-actions">
+                      <button className="ghost-button" onClick={() => updateCartQuantity(entry.product.id, entry.quantity - 1)} disabled={entry.quantity <= 1}>
+                        -1
+                      </button>
+                      <button className="ghost-button" onClick={() => updateCartQuantity(entry.product.id, entry.quantity + 1)}>
+                        +1
+                      </button>
+                      <button className="ghost-button" onClick={() => removeFromCart(entry.product.id)}>
+                        Remove
+                      </button>
                     </div>
-                  ) : (
-                    <div className="helper">No entitlements granted yet for this user.</div>
-                  )}
-                </div>
-                <div>
-                  <h3>Recent Purchases</h3>
-                  <div className="audit-grid">
-                    {payments.map((payment) => (
-                      <div className="activity-card" key={payment.id}>
-                        <strong>{payment.items?.map((item) => `${item.product.code} x${item.quantity}`).join(", ") || payment.product.name}</strong>
-                        <div className="meta-list">
-                          <span>Status: {payment.status}</span>
-                          <span>Total: {formatMoney(payment.amount, payment.currency)}</span>
-                          <span>Created: {formatDate(payment.createdAt)}</span>
-                          <span>Updated: {formatDate(payment.updatedAt)}</span>
-                          <span>{payment.errorMessage ? `Error: ${payment.errorMessage}` : "Stripe checkout recorded."}</span>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
+              ))}
+              <div className="card compact-card checkout-summary-card">
+                <div className="meta-list compact-meta">
+                  <span>Cart lines: {cartEntries.length}</span>
+                  <span>Total: {formatMoney(cartTotal, cartEntries[0]?.product.currency || "usd")}</span>
+                  <span>{cartEntries[0]?.product.accessType === "SUBSCRIPTION" ? "Subscription checkout" : "One-time checkout"}</span>
+                </div>
+                <div className="actions">
+                  <button className="button" onClick={handleCartCheckout} disabled={busy || cartEntries.length === 0}>
+                    Checkout with Stripe
+                  </button>
+                  <button className="ghost-button" onClick={clearCart} disabled={busy || cartEntries.length === 0}>
+                    Clear cart
+                  </button>
+                </div>
               </div>
-            ) : (
-              <div className="helper">No purchases or entitlements yet. Add offers to the cart and complete checkout to grant access.</div>
-            )
+            </div>
           ) : (
-            <div className="helper">Sign in to view purchased offers, subscription entitlements, and quota usage.</div>
+            <div className="helper">The cart is empty. Add an offer from the catalog to prepare checkout.</div>
           )}
+          {lastTransaction?.checkoutUrl ? (
+            <div className="card compact-card mt-3">
+              <strong>Stripe checkout ready</strong>
+              <div className="helper">If the redirect was blocked, open the hosted checkout manually.</div>
+              <div className="actions">
+                <a className="button" href={lastTransaction.checkoutUrl} target="_blank" rel="noreferrer">
+                  Open Stripe Checkout
+                </a>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -919,96 +1108,61 @@ export function MarketDataLakeShell() {
         </div>
       </section>
 
-      <section className="columns">
-        <div className="panel">
-          <div className="section-header">
-            <div>
-              <h2>Shopping Cart</h2>
-              <div className="panel-intro">Cart items are checkout-ready Stripe offers grouped after catalog selection.</div>
-            </div>
+      <section className="panel">
+        <div className="section-header">
+          <div>
+            <h2>Purchase History</h2>
+            <div className="panel-intro">Raw checkout history stays separate from active entitlements and uses the same compact list-detail pattern as the catalog.</div>
           </div>
-          {cartEntries.length > 0 ? (
-            <div className="activity-list">
-              {cartEntries.map((entry) => (
-                <div className="activity-card" key={entry.product.id}>
-                  <strong>{entry.product.name}</strong>
-                  <div className="meta-list">
-                    <span>Catalog item: {entry.catalogItemName}</span>
-                    <span>Mode: {describeProductMode(entry.product)}</span>
-                    <span>Unit price: {formatMoney(entry.product.price, entry.product.currency)}</span>
-                  </div>
-                  <div className="form-row">
-                    <Field
-                      label="Units"
-                      value={String(entry.quantity)}
-                      onChange={(value) => updateCartQuantity(entry.product.id, Math.max(1, Number(value) || 1))}
-                      type="number"
-                    />
-                    <div className="field">
-                      <label>Line total</label>
-                      <input readOnly value={formatMoney(Number(entry.product.price) * entry.quantity, entry.product.currency)} />
-                    </div>
-                  </div>
-                  <div className="actions">
-                    <button
-                      className="ghost-button"
-                      onClick={() => updateCartQuantity(entry.product.id, entry.quantity - 1)}
-                      disabled={entry.quantity <= 1}
-                    >
-                      -1 unit
-                    </button>
-                    <button className="ghost-button" onClick={() => updateCartQuantity(entry.product.id, entry.quantity + 1)}>
-                      +1 unit
-                    </button>
-                    <button className="ghost-button" onClick={() => removeFromCart(entry.product.id)}>
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="helper">The cart is empty. Start by clicking a catalog item and adding one of its offers.</div>
-          )}
         </div>
-
-        <div className="panel">
-          <div className="section-header">
-            <div>
-              <h2>Checkout</h2>
-              <div className="panel-intro">Stripe checkout is created from the cart, not directly from a catalog row.</div>
-            </div>
-          </div>
-          <div className="card">
-            <div className="meta-list">
-              <span>Items in cart: {cartEntries.length}</span>
-              <span>Total: {formatMoney(cartTotal, cartEntries[0]?.product.currency || "usd")}</span>
-              <span>Checkout mode: {cartEntries[0]?.product.accessType === "SUBSCRIPTION" ? "Subscription" : "One-time payment"}</span>
-            </div>
-            <div className="actions">
-              <button className="button" onClick={handleCartCheckout} disabled={busy || cartEntries.length === 0}>
-                Checkout with Stripe
-              </button>
-              <button className="ghost-button" onClick={clearCart} disabled={busy || cartEntries.length === 0}>
-                Clear cart
-              </button>
-            </div>
-          </div>
-          <div className="helper">
-            One cart must keep the same currency and pricing mode. Mixed subscription and one-time offers must be checked out separately.
-          </div>
-          {lastTransaction?.checkoutUrl ? (
-            <div className="card">
-              <strong>Stripe checkout ready</strong>
-              <div className="helper">If the automatic redirect did not happen, open Stripe Checkout manually.</div>
-              <div className="actions">
-                <a className="button" href={lastTransaction.checkoutUrl} target="_blank" rel="noreferrer">
-                  Open Stripe Checkout
-                </a>
+        {profile ? (
+          payments.length > 0 ? (
+            <div className="split-panel">
+              <div className="catalog-list compact-list">
+                {payments.map((payment) => (
+                  <button
+                    key={payment.id}
+                    className={`catalog-list-item ${selectedPayment?.id === payment.id ? "catalog-list-item-active" : ""}`}
+                    onClick={() => setSelectedPaymentId(payment.id)}
+                  >
+                    <span className="catalog-list-title">
+                      {payment.items?.map((item) => `${item.product.code} x${item.quantity}`).join(", ") || payment.product.name}
+                    </span>
+                    <span className="helper">{payment.status} · {formatMoney(payment.amount, payment.currency)}</span>
+                    <span className="helper">{formatDate(payment.createdAt)}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="card compact-card">
+                {selectedPayment ? (
+                  <>
+                    <div className="pill-row">
+                      <span className="pill">#{selectedPayment.id}</span>
+                      <span className="pill">{selectedPayment.status}</span>
+                    </div>
+                    <strong>
+                      {selectedPayment.items?.map((item) => `${item.product.code} x${item.quantity}`).join(", ") || selectedPayment.product.name}
+                    </strong>
+                    <div className="meta-list compact-meta">
+                      <span>Total: {formatMoney(selectedPayment.amount, selectedPayment.currency)}</span>
+                      <span>Created: {formatDate(selectedPayment.createdAt)}</span>
+                      <span>Updated: {formatDate(selectedPayment.updatedAt)}</span>
+                      <span>
+                        Items:{" "}
+                        {selectedPayment.items?.map((item) => `${item.product.name} x${item.quantity}`).join(", ") || selectedPayment.product.name}
+                      </span>
+                      <span>{selectedPayment.errorMessage ? `Error: ${selectedPayment.errorMessage}` : "Stripe checkout recorded."}</span>
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>
-          ) : null}
-        </div>
+          ) : (
+            <div className="helper">No purchase history yet for this user.</div>
+          )
+        ) : (
+          <div className="helper">Sign in to inspect checkout and payment history.</div>
+        )}
       </section>
 
       <section className="panel" id="market-data">
@@ -1268,6 +1422,45 @@ function groupMarketData(rows: MarketData[]) {
     accumulator[row.dataType].push(row);
     return accumulator;
   }, {});
+}
+
+function aggregateEntitlements(rows: Entitlement[]): AccessSummary[] {
+  return Object.values(
+    rows.reduce<Record<number, AccessSummary>>((accumulator, entitlement) => {
+      const key = entitlement.product.id;
+      const existing = accumulator[key];
+      if (!existing) {
+        accumulator[key] = {
+          key,
+          product: entitlement.product,
+          purchasedUnits: entitlement.purchasedUnits,
+          batchDownloadUsedMb: entitlement.batchDownloadUsedMb,
+          realtimeSubscriptionsUsed: entitlement.realtimeSubscriptionsUsed,
+          payloadKilobytesUsed: entitlement.payloadKilobytesUsed,
+          grantedAt: entitlement.grantedAt,
+          expiresAt: entitlement.expiresAt,
+          entitlementCount: 1
+        };
+        return accumulator;
+      }
+
+      existing.purchasedUnits += entitlement.purchasedUnits;
+      existing.batchDownloadUsedMb += entitlement.batchDownloadUsedMb;
+      existing.realtimeSubscriptionsUsed += entitlement.realtimeSubscriptionsUsed;
+      existing.payloadKilobytesUsed += entitlement.payloadKilobytesUsed;
+      existing.entitlementCount += 1;
+
+      if (new Date(entitlement.grantedAt).getTime() > new Date(existing.grantedAt).getTime()) {
+        existing.grantedAt = entitlement.grantedAt;
+      }
+
+      if (!existing.expiresAt || (entitlement.expiresAt && new Date(entitlement.expiresAt).getTime() > new Date(existing.expiresAt).getTime())) {
+        existing.expiresAt = entitlement.expiresAt;
+      }
+
+      return accumulator;
+    }, {})
+  );
 }
 
 function getErrorMessage(error: unknown) {

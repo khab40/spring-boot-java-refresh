@@ -9,12 +9,13 @@ import {
   PaymentTransaction,
   SessionState,
   UsageSummary,
+  UpdateUserProfilePayload,
   UserProfile
 } from "./types";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
-type HttpMethod = "GET" | "POST";
+type HttpMethod = "GET" | "POST" | "PUT";
 
 async function request<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
   const headers = new Headers(init?.headers);
@@ -65,6 +66,7 @@ export const api = {
   logout: (token: string) => send<void>("/api/auth/logout", "POST", {}, token),
   googleLoginUrl: () => `${API_BASE_URL}/oauth2/authorization/google`,
   me: (token: string) => request<UserProfile>("/api/auth/me", undefined, token),
+  updateMe: (payload: UpdateUserProfilePayload, token: string) => send<UserProfile>("/api/auth/me", "PUT", payload, token),
   myEntitlements: (token: string) => request<Entitlement[]>("/api/auth/me/entitlements", undefined, token),
   myPayments: (token: string) => request<PaymentTransaction[]>("/api/auth/me/payments", undefined, token),
   catalogItems: () => request<CatalogItem[]>("/api/catalog/items?activeOnly=true"),

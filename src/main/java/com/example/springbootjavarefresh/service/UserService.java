@@ -1,6 +1,7 @@
 package com.example.springbootjavarefresh.service;
 
 import com.example.springbootjavarefresh.dto.CreateUserRequest;
+import com.example.springbootjavarefresh.dto.UpdateUserProfileRequest;
 import com.example.springbootjavarefresh.entity.AuthProvider;
 import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.repository.UserRepository;
@@ -94,6 +95,18 @@ public class UserService {
         user.setProviderSubject(providerSubject);
         user.setEmailVerified(Boolean.TRUE);
         user.setEmailVerifiedAt(java.time.LocalDateTime.now());
+        return userRepository.save(user);
+    }
+
+    public User updateUserProfile(Long userId, UpdateUserProfileRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found for id: " + userId));
+
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setCompany(request.getCompany());
+        user.setCountry(request.getCountry());
+        user.setPhoneNumber(request.getPhoneNumber());
         return userRepository.save(user);
     }
 }

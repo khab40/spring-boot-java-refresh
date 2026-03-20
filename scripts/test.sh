@@ -11,7 +11,7 @@ docker run --rm \
   -v "${REPO_ROOT}:/workspace" \
   -w /workspace \
   maven:3.9.9-eclipse-temurin-21 \
-  mvn -Dproject.build.directory=/tmp/market-data-lake-target clean test "$@"
+  mvn -Dmaven.clean.skip=true -Dproject.build.directory=/tmp/market-data-lake-target test "$@"
 
 docker run --rm \
   -v "${HOME}/.npm:/root/.npm" \

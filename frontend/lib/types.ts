@@ -166,3 +166,11 @@ export type SessionState = {
   email: string;
   profile?: UserProfile | null;
 };
+
+export type UpdateUserProfilePayload = {
+  firstName: string;
+  lastName: string;
+  company?: string | null;
+  country?: string | null;
+  phoneNumber?: string | null;
+};

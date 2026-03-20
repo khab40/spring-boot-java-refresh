@@ -6,6 +6,7 @@ import com.example.springbootjavarefresh.dto.CreateUserRequest;
 import com.example.springbootjavarefresh.dto.EmailRequest;
 import com.example.springbootjavarefresh.dto.EmailVerificationResponse;
 import com.example.springbootjavarefresh.dto.MessageResponse;
+import com.example.springbootjavarefresh.dto.UpdateUserProfileRequest;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
 import com.example.springbootjavarefresh.entity.PaymentTransaction;
 import com.example.springbootjavarefresh.entity.User;
@@ -75,6 +76,15 @@ public class AuthController {
     public ResponseEntity<UserProfileResponse> me(Authentication authentication) {
         User user = resolveAuthenticatedUser(authentication);
         return ResponseEntity.ok(UserProfileResponse.fromUser(user));
+    }
+
+    @PutMapping("/me")
+    @Operation(summary = "Update the currently authenticated user profile")
+    public ResponseEntity<UserProfileResponse> updateMe(
+            Authentication authentication,
+            @Valid @RequestBody UpdateUserProfileRequest request) {
+        User user = resolveAuthenticatedUser(authentication);
+        return ResponseEntity.ok(UserProfileResponse.fromUser(userService.updateUserProfile(user.getId(), request)));
     }
 
     @GetMapping("/me/entitlements")

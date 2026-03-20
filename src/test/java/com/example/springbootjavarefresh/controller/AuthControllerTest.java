@@ -2,6 +2,7 @@ package com.example.springbootjavarefresh.controller;
 
 import com.example.springbootjavarefresh.dto.AuthResponse;
 import com.example.springbootjavarefresh.dto.EmailVerificationResponse;
+import com.example.springbootjavarefresh.dto.UpdateUserProfileRequest;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
 import com.example.springbootjavarefresh.entity.PaymentTransaction;
 import com.example.springbootjavarefresh.entity.PaymentTransactionStatus;
@@ -120,6 +121,43 @@ class AuthControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals("auth@example.com", response.getBody().email());
+    }
+
+    @Test
+    void shouldUpdateCurrentUserProfile() throws Exception {
+        User updatedUser = new User();
+        updatedUser.setId(1L);
+        updatedUser.setEmail("auth@example.com");
+        updatedUser.setFirstName("Updated");
+        updatedUser.setLastName("User");
+        updatedUser.setCompany("MDL");
+        updatedUser.setCountry("US");
+        updatedUser.setPhoneNumber("+1-555-0100");
+
+        when(userService.updateUserProfile(any(), any())).thenReturn(updatedUser);
+
+        User userPrincipal = new User();
+        userPrincipal.setId(1L);
+        userPrincipal.setEmail("auth@example.com");
+        userPrincipal.setFirstName("Auth");
+        userPrincipal.setLastName("User");
+        userPrincipal.setPasswordHash("ignored");
+
+        UpdateUserProfileRequest request = new UpdateUserProfileRequest();
+        request.setFirstName("Updated");
+        request.setLastName("User");
+        request.setCompany("MDL");
+        request.setCountry("US");
+        request.setPhoneNumber("+1-555-0100");
+
+        ResponseEntity<UserProfileResponse> response = authController.updateMe(
+                new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities()),
+                request
+        );
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals("Updated", response.getBody().firstName());
+        assertEquals("MDL", response.getBody().company());
     }
 
     @Test
