@@ -1,6 +1,6 @@
 # Market Data Lake
 
-Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, Google OAuth2 sign-in, API key access control, catalog-first data shop flows, asynchronous Stripe-backed payment flows, administration, and a lightweight Apache Airflow component reserved for future orchestration workflows. Delta Lake is currently isolated from active runtime, development, and deployment while market-data endpoints are served from a preview stub and transactional application state stays in H2.
+Market Data Lake is a full-stack market data platform for catalog-driven data discovery, commerce, entitlements, API-key-based access, and operational monitoring. The application combines a Java 21 Spring Boot backend, a rich React and Next.js web UI, Stripe-based checkout flows, JWT and OAuth2 authentication, admin and audit capabilities, Prometheus and Grafana observability, and a lightweight Apache Airflow component reserved for future ingestion and lake orchestration workflows. Delta Lake is currently isolated from active runtime, development, and deployment while market-data delivery endpoints are served from a preview stub and transactional application state stays in H2.
 
 ## Features
 
@@ -56,15 +56,16 @@ Market Data Lake is a Spring Boot backend with a separate Next.js web UI for mar
 ### Local Development
 
 1. Clone the repository
-2. Run `mvn clean install` to build the project
-3. Run `mvn spring-boot:run` to start the service
-4. Run `mvn test` to execute unit tests
+2. Run `mvn clean install` to build the backend
+3. Run `mvn spring-boot:run` to start the Spring Boot API
+4. In a separate shell, start the web UI from `frontend/` with your preferred Next.js workflow if you want non-Docker local UI development
+5. Run `mvn test` to execute backend unit tests
 
-The service will be available at `http://localhost:8080`
-
-Local execution uses:
+Local backend execution uses:
 - H2 for transactional application state
 - an in-memory preview stub for market-data responses
+
+For full-stack local runtime with the UI, Mailpit, Airflow, Prometheus, and Grafana included, prefer the Docker workflow below.
 
 ### Containerized Runtime
 
@@ -404,19 +405,50 @@ More architecture documentation:
 ## Project Structure
 
 ```
-src/
-├── main/
-│   ├── java/
-│   │   └── com/example/springbootjavarefresh/
-│   │       ├── controller/     # REST controllers
-│   │       ├── entity/         # Domain models and JPA entities
-│   │       ├── repository/     # Relational repositories
-│   │       ├── service/        # Business logic, stubs, payments, and catalog flows
-│   │       └── SpringBootJavaRefreshApplication.java
-│   └── resources/
-│       ├── application.properties
-│       └── data.sql
-└── test/                      # Unit tests
+.
+├── src/
+│   ├── main/
+│   │   ├── java/com/example/springbootjavarefresh/
+│   │   │   ├── config/          # Mail and application configuration
+│   │   │   ├── controller/      # REST API controllers
+│   │   │   ├── dto/             # Request and response DTOs
+│   │   │   ├── entity/          # Domain entities and JPA models
+│   │   │   ├── observability/   # Actuator endpoint, health indicators, custom metrics
+│   │   │   ├── repository/      # Relational repositories
+│   │   │   ├── security/        # JWT, OAuth2, filters, security config
+│   │   │   ├── service/         # Catalog, auth, payments, API keys, admin, market data logic
+│   │   │   └── SpringBootJavaRefreshApplication.java
+│   │   └── resources/
+│   │       └── application.properties
+│   └── test/
+│       ├── java/com/example/springbootjavarefresh/
+│       │   ├── controller/      # Controller tests
+│       │   ├── observability/   # Monitoring endpoint tests
+│       │   ├── security/        # JWT and auth tests
+│       │   └── service/         # Service-layer tests
+│       └── resources/
+│           └── application.properties
+├── frontend/
+│   ├── app/                     # Next.js app router pages, API routes, OAuth callback
+│   ├── components/              # React UI components
+│   ├── lib/                     # Frontend API client and shared UI types
+│   ├── public/                  # Static frontend assets
+│   ├── package.json             # Frontend dependencies and scripts
+│   └── Dockerfile               # Separate UI container image
+├── airflow/
+│   ├── dags/                    # Future orchestration DAGs
+│   ├── logs/                    # Local Airflow logs
+│   └── plugins/                 # Future Airflow plugins
+├── monitoring/
+│   ├── prometheus/              # Prometheus scrape configuration
+│   └── grafana/                 # Provisioned datasources and dashboards
+├── docs/
+│   ├── adr/                     # Architecture decision records
+│   └── diagrams/                # Architecture and ADR diagrams
+├── scripts/                     # Build, run, test, logs, Stripe, Airflow helpers
+├── docker-compose.yml           # Full local stack definition
+├── ARCHITECTURE.md              # Architecture overview
+└── README.md
 ```
 
 ## Testing
