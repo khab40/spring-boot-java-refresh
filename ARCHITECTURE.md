@@ -33,6 +33,8 @@ Architecture decisions are recorded in:
 - [ADR-0007](./docs/adr/0007-use-nextjs-web-ui-in-a-separate-container.md)
 - [ADR-0008](./docs/adr/0008-use-google-oauth2-login-with-jwt-session-bridging.md)
 - [ADR-0009](./docs/adr/0009-separate-catalog-items-from-sellable-offers-and-use-cart-checkout.md)
+- [ADR-0010](./docs/adr/0010-use-standalone-airflow-for-future-workflow-orchestration.md)
+- [ADR-0011](./docs/adr/0011-use-actuator-prometheus-and-grafana-for-local-observability.md)
 
 The main system diagram is available in:
 - [Architecture Overview Diagram](./docs/diagrams/architecture-overview.md)
@@ -42,6 +44,10 @@ The main system diagram is available in:
 JWT-based authentication with Spring Security, password hashing, email verification, optional Google OAuth2 login, and stateless bearer-token validation.
 - Web experience layer
 A separate Next.js frontend provides signup, signin, catalog, checkout, entitlement, and administration workflows.
+- Workflow orchestration layer
+A separate Apache Airflow standalone container is reserved for future ingestion adapters, metadata refresh jobs, and data-lake-facing orchestration.
+- Observability layer
+Spring Boot Actuator health groups, Micrometer metrics, Prometheus scraping, Grafana dashboards, and a custom monitoring summary endpoint provide runtime visibility across API, UI, Airflow, Stripe, catalog, usage, and subscription flows.
 - API access layer
 API key issuance, lookup, quota enforcement, and usage recording for downstream data access.
 - Backend services
@@ -69,12 +75,17 @@ The primary data flows are:
 11. The application resolves the API key, checks the user entitlement for the target product, enforces quota limits, updates usage counters, and writes an `ApiKeyUsageRecord`.
 12. Market data create, read, and delete flows use a stub store that returns preview data and accepts admin-created preview rows.
 13. The web UI runs in a separate container, calls the Java API over HTTP, and drives the end-user and admin flows without duplicating backend business rules.
+14. Airflow remains operationally separate and is reserved for future DAG-driven ingestion and lake workflows rather than the current request-response path.
+15. Prometheus scrapes `/actuator/prometheus`, and Grafana visualizes both standard JVM metrics and MDL-specific business metrics.
 
 ## Deployment Architecture
 The current deployment model is simple:
 - A separate Next.js web UI container
 - A single Spring Boot application process
 - A Mailpit container for local SMTP capture and verification testing
+- A standalone Apache Airflow container for future orchestration development
+- A Prometheus container for metrics collection
+- A Grafana container with provisioned dashboards and datasource
 - Optional outbound OAuth2 integration with Google identity endpoints
 - H2 for transactional local, test, and containerized execution
 - Docker-based scripts for build, test, run, logs, and shutdown
@@ -87,7 +98,8 @@ There is currently no Kubernetes cluster, service mesh, dedicated ingress tier, 
 - Authentication: BCrypt password hashing, email verification, Spring Security OAuth2 client for Google, JWT bearer tokens
 - Payments: Stripe Checkout and webhook processing
 - Data: H2 plus in-memory market-data stubs
-- Build and Test: Maven, Docker, Docker Compose
+- Monitoring: Spring Boot Actuator, Micrometer, Prometheus, Grafana
+- Build and Test: Maven, Docker, Docker Compose, Apache Airflow standalone
 - API Documentation: springdoc OpenAPI / Swagger UI
 
 ## Key Architectural Principles
@@ -103,6 +115,10 @@ Purchased offers define both pricing and quota limits, and entitlements are the 
 Usage is persisted as explicit records rather than inferred only from aggregate counters.
 - Pragmatic evolution
 The design favors a single deployable service today while leaving room for future billing, forecasting, and reporting expansion.
+- Orchestration without premature distribution
+Workflow orchestration is introduced as a separate component now, but kept in a lightweight standalone mode until ingestion and lake pipelines justify a heavier Airflow deployment.
+- Pragmatic observability
+Use standard Spring and Prometheus-compatible instrumentation first, then add richer tracing later only when the operational need justifies it.
 
 ## Related ADRs
 See [`/docs/adr`](./docs/adr) for architecture decisions.
@@ -118,3 +134,5 @@ Related diagrams:
 - [ADR-0007 Diagram](./docs/diagrams/adr-0007-nextjs-web-ui.md)
 - [ADR-0008 Diagram](./docs/diagrams/adr-0008-google-oauth2-jwt-bridge.md)
 - [ADR-0009 Diagram](./docs/diagrams/adr-0009-catalog-items-offers-cart-checkout.md)
+- [ADR-0010 Diagram](./docs/diagrams/adr-0010-airflow-orchestration.md)
+- [ADR-0011 Diagram](./docs/diagrams/adr-0011-observability-monitoring.md)

@@ -1,6 +1,6 @@
 # Market Data Lake
 
-Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, Google OAuth2 sign-in, API key access control, catalog-first data shop flows, asynchronous Stripe-backed payment flows, and administration. Delta Lake is currently isolated from active runtime, development, and deployment while market-data endpoints are served from a preview stub and transactional application state stays in H2.
+Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, Google OAuth2 sign-in, API key access control, catalog-first data shop flows, asynchronous Stripe-backed payment flows, administration, and a lightweight Apache Airflow component reserved for future orchestration workflows. Delta Lake is currently isolated from active runtime, development, and deployment while market-data endpoints are served from a preview stub and transactional application state stays in H2.
 
 ## Features
 
@@ -19,6 +19,10 @@ Market Data Lake is a Spring Boot backend with a separate Next.js web UI for mar
 - Preview market-data stubs for runtime and development
 - H2 database for transactional local development and containerized runtime
 - Separate Next.js web UI running in its own Docker container
+- Separate Apache Airflow standalone container for future workflow orchestration
+- Spring Boot Actuator health groups and a custom monitoring summary endpoint
+- Prometheus metrics scraping for JVM, HTTP, billing, catalog, usage, and integration health
+- Grafana dashboards for local monitoring and operational BI
 - Docker containerization
 - Comprehensive unit tests
 
@@ -39,6 +43,7 @@ Market Data Lake is a Spring Boot backend with a separate Next.js web UI for mar
 - Stripe webhooks finalize payments and grant `UserEntitlement` access for subscriptions and one-time purchases.
 - API access registration and login flows mint API keys for users, and each usage event is written into dedicated usage tables while entitlement limits are enforced.
 - The Next.js web UI consumes the backend REST API for signup, signin, catalog browsing, checkout polling, entitlement inspection, and admin audit workflows.
+- Airflow is reserved for future ingestion adapters and data-lake-facing orchestration rather than the current request-response path.
 
 ## Prerequisites
 
@@ -68,6 +73,67 @@ Local execution uses:
 3. Market-data endpoints are served from the in-memory preview stub
 4. The separate web UI is available at `http://localhost:3000`
 5. Local email capture is available at `http://localhost:8025` through Mailpit
+6. Airflow is available at `http://localhost:8081` for future orchestration work
+7. Prometheus is available at `http://localhost:9090`
+8. Grafana is available at `http://localhost:3001`
+
+### Airflow Configuration
+
+The Docker stack now includes a lightweight Airflow standalone container using the official slim image.
+
+Local defaults:
+
+- Airflow UI: `http://localhost:8081`
+- Username: `airflow`
+- Password: `airflow`
+
+Override credentials in `.env` if needed:
+
+- `AIRFLOW_USERNAME`
+- `AIRFLOW_PASSWORD`
+
+Reserved workflow folders:
+
+- `airflow/dags`
+- `airflow/plugins`
+- `airflow/logs`
+
+This Airflow setup is intentionally minimal:
+
+- single-container standalone mode
+- examples disabled
+- no separate Postgres, Redis, scheduler, worker, or triggerer containers
+- intended for future ingestion adapters and data lake orchestration
+
+### Monitoring and Health
+
+The stack now uses Spring Boot Actuator and Micrometer with Prometheus for local-friendly observability, plus Grafana for dashboards and operational BI.
+
+Public monitoring endpoints:
+
+- `GET /actuator/health`
+- `GET /actuator/health/liveness`
+- `GET /actuator/health/readiness`
+- `GET /actuator/health/integrations`
+- `GET /actuator/health/business`
+- `GET /actuator/prometheus`
+- `GET /actuator/mdl`
+- `GET /api/health` on the UI container
+
+Coverage includes:
+
+- REST API liveness and readiness
+- JVM heap, CPU, process, and HTTP metrics
+- API container disk metrics
+- Frontend UI reachability
+- Airflow reachability
+- Stripe configuration status and transaction state counts
+- Data catalog inventory counts
+- Usage records, download volume, realtime usage, and request totals
+- Active entitlements and subscription totals
+- Market-data runtime status and preview-row counts
+
+The custom `GET /actuator/mdl` endpoint is used for richer operational summaries such as top usage users and subscription rollups. That keeps user-level detail out of Prometheus label cardinality while still making it available to Grafana and future audit tooling.
 
 ### Stripe Configuration
 
@@ -391,14 +457,16 @@ Or use the helper scripts in `scripts/`:
 ./scripts/run.sh
 ./scripts/test.sh
 ./scripts/logs.sh app
+./scripts/airflow-cli.sh dags list
 ./scripts/shutdown.sh
 ```
 
 Verified workflow:
 - `./scripts/build.sh` builds the backend and frontend Docker images
-- `./scripts/run.sh` starts the backend API and frontend UI with Docker Compose
+- `./scripts/run.sh` starts the backend API, frontend UI, Mailpit, Airflow, Prometheus, and Grafana with Docker Compose
 - `./scripts/test.sh` runs the Maven backend tests and the Next.js frontend tests
 - `./scripts/logs.sh app` tails container logs
+- `./scripts/airflow-cli.sh <args>` runs Airflow CLI commands inside the Airflow container
 - `./scripts/shutdown.sh` stops and removes the stack
 
 The Docker image builds with Maven in a build stage and runs on Java 21 JRE in the final stage.

@@ -53,6 +53,7 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/oauth2/**",
                                 "/login/oauth2/**",
+                                "/actuator/**",
                                 "/api/access/register",
                                 "/api/access/login",
                                 "/api/access/usage",
