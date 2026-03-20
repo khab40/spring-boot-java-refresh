@@ -1,5 +1,7 @@
 package com.example.springbootjavarefresh.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -7,6 +9,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
@@ -30,6 +35,11 @@ public class DataProduct {
     @NotBlank
     @Column(name = "name", nullable = false)
     private String name;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "catalog_item_id")
+    @JsonIgnore
+    private DataCatalogItem catalogItem;
 
     @Column(name = "description")
     private String description;
@@ -100,6 +110,19 @@ public class DataProduct {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public DataCatalogItem getCatalogItem() {
+        return catalogItem;
+    }
+
+    public void setCatalogItem(DataCatalogItem catalogItem) {
+        this.catalogItem = catalogItem;
+    }
+
+    @JsonProperty("catalogItemId")
+    public Long getCatalogItemId() {
+        return catalogItem == null ? null : catalogItem.getId();
     }
 
     public String getDescription() {

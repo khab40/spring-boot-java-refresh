@@ -49,6 +49,9 @@ public class UserEntitlement {
     @Column(name = "source_transaction_id")
     private Long sourceTransactionId;
 
+    @Column(name = "purchased_units")
+    private Integer purchasedUnits = 0;
+
     @Column(name = "batch_download_used_mb", nullable = false, precision = 12, scale = 2)
     private BigDecimal batchDownloadUsedMb = BigDecimal.ZERO;
 
@@ -71,6 +74,9 @@ public class UserEntitlement {
         }
         if (payloadKilobytesUsed == null) {
             payloadKilobytesUsed = 0L;
+        }
+        if (purchasedUnits == null || purchasedUnits < 0) {
+            purchasedUnits = 0;
         }
     }
 
@@ -136,6 +142,14 @@ public class UserEntitlement {
 
     public void setSourceTransactionId(Long sourceTransactionId) {
         this.sourceTransactionId = sourceTransactionId;
+    }
+
+    public Integer getPurchasedUnits() {
+        return purchasedUnits;
+    }
+
+    public void setPurchasedUnits(Integer purchasedUnits) {
+        this.purchasedUnits = purchasedUnits;
     }
 
     public BigDecimal getBatchDownloadUsedMb() {

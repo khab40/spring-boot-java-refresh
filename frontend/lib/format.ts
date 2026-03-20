@@ -27,3 +27,10 @@ export function describeProductMode(product: DataProduct) {
 
   return "One-time dataset purchase";
 }
+
+export function describeStorage(storageSystem: string) {
+  return storageSystem
+    .split("_")
+    .map((token) => token.charAt(0) + token.slice(1).toLowerCase())
+    .join(" ");
+}

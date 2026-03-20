@@ -28,17 +28,36 @@ export type AuthResponse = {
 
 export type DataProduct = {
   id: number;
+  catalogItemId?: number | null;
   code: string;
   name: string;
   description?: string | null;
   price: number;
   currency: string;
-  accessType: "ONE_TIME" | "SUBSCRIPTION";
+  accessType: "ONE_TIME_PURCHASE" | "SUBSCRIPTION";
   billingInterval: "ONE_TIME" | "MONTHLY" | "YEARLY";
   batchDownloadLimitMb?: number | null;
   realtimeSubscriptionLimit?: number | null;
   maxRealtimePayloadKb?: number | null;
   active?: boolean;
+};
+
+export type CatalogItem = {
+  id: number;
+  code: string;
+  name: string;
+  summary?: string | null;
+  description?: string | null;
+  marketDataType: "QUOTE" | "TICK" | "NEWS" | "FUNDAMENTALS" | "CRYPTO" | "OTHER";
+  storageSystem: "DELTA_LAKE" | "ICEBERG" | "STUB" | "OTHER";
+  deliveryApiPath?: string | null;
+  lakeQueryReference?: string | null;
+  sampleSymbols?: string | null;
+  coverageStartDate?: string | null;
+  coverageEndDate?: string | null;
+  active?: boolean;
+  createdAt?: string;
+  offers: DataProduct[];
 };
 
 export type MarketData = {
@@ -48,7 +67,7 @@ export type MarketData = {
   volume: number;
   timestamp: string;
   marketDate: string;
-  dataType: "TICK" | "NEWS" | "FUNDAMENTALS" | "CRYPTO" | "OTHER";
+  dataType: "QUOTE" | "TICK" | "NEWS" | "FUNDAMENTALS" | "CRYPTO" | "OTHER";
 };
 
 export type MarketDataRuntimeStatus = {
@@ -63,6 +82,7 @@ export type Entitlement = {
   status: string;
   grantedAt: string;
   expiresAt?: string | null;
+  purchasedUnits: number;
   batchDownloadUsedMb: number;
   realtimeSubscriptionsUsed: number;
   payloadKilobytesUsed: number;
@@ -79,6 +99,14 @@ export type PaymentTransaction = {
   createdAt?: string;
   updatedAt?: string;
   product: DataProduct;
+  items?: {
+    id?: number;
+    quantity: number;
+    unitPrice: number;
+    lineAmount: number;
+    currency: string;
+    product: DataProduct;
+  }[];
 };
 
 export type UsageSummary = {

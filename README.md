@@ -1,6 +1,6 @@
 # Market Data Lake
 
-Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, Google OAuth2 sign-in, API key access control, data product cataloging, asynchronous Stripe-backed payment flows, and administration. Delta Lake is currently isolated from active runtime, development, and deployment while market-data endpoints are served from a preview stub and transactional application state stays in H2.
+Market Data Lake is a Spring Boot backend with a separate Next.js web UI for market data delivery, user management, JWT-based authentication, Google OAuth2 sign-in, API key access control, catalog-first data shop flows, asynchronous Stripe-backed payment flows, and administration. Delta Lake is currently isolated from active runtime, development, and deployment while market-data endpoints are served from a preview stub and transactional application state stays in H2.
 
 ## Features
 
@@ -9,8 +9,9 @@ Market Data Lake is a Spring Boot backend with a separate Next.js web UI for mar
 - Legacy subscription management for Market Data
 - User management with profile fields such as email, first name, last name, company, country, and phone number
 - Full authentication system with password hashing, email verification, Google OAuth2 sign-in, JWT bearer tokens, and stateless security filters
-- Data Catalog service for listing and managing purchasable data products
-- User entitlement tracking for subscription and one-time product access
+- Data Catalog service that separates lake-facing catalog items from sellable offers
+- Shopping cart and multi-offer Stripe checkout flow
+- User entitlement tracking for subscription and one-time offer access
 - API key issuance for user registration and login flows
 - API key usage tracking with per-product quota enforcement for batch downloads and realtime subscriptions
 - Usage history tables that can later support billing, forecasting, and audit reporting
@@ -29,12 +30,12 @@ Market Data Lake is a Spring Boot backend with a separate Next.js web UI for mar
 
 ## Core Flows
 
-- Catalog administrators create `DataProduct` records that define price, currency, purchase mode, and billing interval.
-- Catalog administrators can also define quota limits such as batch download megabytes, realtime subscription counts, and payload caps.
-- Clients create `User` records and query `/api/catalog/products` to discover available offerings.
+- Catalog administrators create `DataCatalogItem` records that describe what exists in the lake, how it is queried, and what market-data type it represents.
+- Catalog administrators create linked `DataProduct` offers that define price, currency, purchase mode, billing interval, and quota limits for a catalog item.
+- Clients create `User` records and query `/api/catalog/items` to discover available lake datasets and their linked offers.
 - Credential-based registration sends an email verification link first, and verified users can then log in to receive a JWT for management APIs and an API key for downstream data access.
 - Google sign-in uses Spring Security OAuth2 login, links or creates a local user, and then issues the same application JWT and API key pair used by password-authenticated users.
-- Checkout requests create `PaymentTransaction` records immediately and then start Stripe session creation asynchronously.
+- Checkout requests create `PaymentTransaction` records with `PaymentTransactionItem` cart lines and then start Stripe session creation asynchronously.
 - Stripe webhooks finalize payments and grant `UserEntitlement` access for subscriptions and one-time purchases.
 - API access registration and login flows mint API keys for users, and each usage event is written into dedicated usage tables while entitlement limits are enforced.
 - The Next.js web UI consumes the backend REST API for signup, signin, catalog browsing, checkout polling, entitlement inspection, and admin audit workflows.
@@ -81,9 +82,16 @@ Set these sandbox values in `.env` before using payment endpoints:
 Local sandbox webhook flow:
 
 1. Start the application locally on `http://localhost:8080`.
-2. Run `./scripts/stripe-listen.sh`.
+2. Run `./scripts/run.sh`. It now attempts to start `./scripts/stripe-listen.sh` automatically in the background when Stripe CLI is installed.
 3. Stripe CLI will expose a reachable forwarding tunnel to `POST /api/payments/webhook`.
 4. Copy the signing secret printed by Stripe CLI into `STRIPE_WEBHOOK_SECRET` in `.env` if needed.
+
+Automatic listener behavior:
+
+- `./scripts/run.sh` starts the Docker stack and then starts Stripe webhook forwarding in the background
+- `./scripts/shutdown.sh` stops both the Docker stack and the background Stripe listener
+- listener logs are written to `${TMPDIR:-/tmp}/market-data-lake/stripe-listen.log`
+- set `MDL_AUTO_STRIPE_LISTEN=false` if you want to skip automatic listener startup
 
 The webhook endpoint used by local forwarding is:
 
@@ -138,8 +146,8 @@ The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It
 
 - signup, signin, and signout flows
 - Google sign-in with OAuth2 callback handling in the frontend
-- catalog browsing and market-data preview browsing
-- Stripe checkout initiation and transaction polling
+- catalog browsing, item drill-down, and shopping cart management
+- Stripe checkout initiation from the cart and transaction polling
 - entitlement and API key visibility for signed-in users
 - administration views for dashboard, product creation, market-data insertion, and audit activity
 
@@ -182,11 +190,16 @@ The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It
 
 ### Data Catalog
 
+- `GET /api/catalog/items` - Get all catalog items with linked offers
+- `GET /api/catalog/items?activeOnly=true` - Get active catalog items only
+- `GET /api/catalog/items/{id}` - Get catalog item by ID
+- `GET /api/catalog/items/code/{code}` - Get catalog item by code
+- `POST /api/catalog/items` - Create a catalog item
 - `GET /api/catalog/products` - Get all products
 - `GET /api/catalog/products?activeOnly=true` - Get active products only
 - `GET /api/catalog/products/{id}` - Get product by ID
-- `GET /api/catalog/products/code/{code}` - Get product by code
-- `POST /api/catalog/products` - Create a catalog product
+- `GET /api/catalog/products/code/{code}` - Get sellable offer by code
+- `POST /api/catalog/products` - Create a sellable offer for a catalog item
 
 ### Payments
 
@@ -212,8 +225,8 @@ The web UI is implemented in `frontend/` with React, Next.js, and TypeScript. It
 1. Register with `POST /api/auth/register`.
 2. Open the verification email from Mailpit or your configured SMTP inbox and call `GET /api/auth/verify-email?token=...`.
 3. Sign in with `POST /api/auth/login` to get a bearer token and API key.
-4. Use the bearer token to create or query catalog products with `POST /api/catalog/products` or `GET /api/catalog/products`.
-5. Start checkout with `POST /api/payments/checkout`.
+4. Query `GET /api/catalog/items` to browse catalog metadata and linked offers.
+5. Add one or more compatible offers to the shopping cart in the UI or submit a cart payload to `POST /api/payments/checkout`.
 6. Poll `GET /api/payments/{id}` until Stripe session creation completes.
 7. Let Stripe call `POST /api/payments/webhook` to mark the transaction successful and grant entitlements.
 8. Submit usage events through `POST /api/access/usage` and inspect remaining quota with `GET /api/access/usage/summary`.
@@ -247,9 +260,11 @@ The API is documented using OpenAPI 3.0. Access the Swagger UI at `http://localh
 - `User` stores the customer identity and contact fields used by the commerce flow.
 - `User` also stores password hashes, email verification state, roles, and identity-provider fields for local and Google-based authentication.
 - `EmailVerificationToken` stores hashed verification tokens, expiration times, and usage timestamps for one-time email confirmation.
-- `DataProduct` represents a sellable data offering, including code, price, currency, access type, billing interval, and API usage quotas.
-- `PaymentTransaction` tracks asynchronous checkout creation and final payment status.
-- `UserEntitlement` records which products a user can access, whether acquired as a recurring subscription or one-time purchase, and how much quota has already been consumed.
+- `DataCatalogItem` represents lake-facing metadata such as dataset code, market-data type, storage system, query reference, delivery path, and coverage window.
+- `DataProduct` represents a sellable offer linked to a catalog item, including code, price, currency, access type, billing interval, and API usage quotas.
+- `PaymentTransaction` tracks asynchronous cart checkout creation and final payment status.
+- `PaymentTransactionItem` records each offer and quantity included in a checkout transaction.
+- `UserEntitlement` records which offers a user can access, how many units were purchased, and how much quota has already been consumed.
 - `ApiKey` stores issued credentials per user without persisting the raw token, only a hash and prefix.
 - `ApiKeyUsageRecord` stores auditable usage events for later billing, prediction, and audit reporting.
 - `MarketData` is currently served through a preview stub so UI, checkout, and entitlement flows can evolve independently from future lake-storage work.

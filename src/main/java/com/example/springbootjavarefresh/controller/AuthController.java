@@ -7,9 +7,11 @@ import com.example.springbootjavarefresh.dto.EmailRequest;
 import com.example.springbootjavarefresh.dto.EmailVerificationResponse;
 import com.example.springbootjavarefresh.dto.MessageResponse;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
+import com.example.springbootjavarefresh.entity.PaymentTransaction;
 import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.entity.UserEntitlement;
 import com.example.springbootjavarefresh.service.AuthService;
+import com.example.springbootjavarefresh.service.PaymentService;
 import com.example.springbootjavarefresh.service.UserEntitlementService;
 import com.example.springbootjavarefresh.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,14 +31,17 @@ import java.util.List;
 public class AuthController {
 
     private final AuthService authService;
+    private final PaymentService paymentService;
     private final UserEntitlementService userEntitlementService;
     private final UserService userService;
 
     public AuthController(
             AuthService authService,
+            PaymentService paymentService,
             UserEntitlementService userEntitlementService,
             UserService userService) {
         this.authService = authService;
+        this.paymentService = paymentService;
         this.userEntitlementService = userEntitlementService;
         this.userService = userService;
     }
@@ -77,6 +82,13 @@ public class AuthController {
     public ResponseEntity<List<UserEntitlement>> myEntitlements(Authentication authentication) {
         User user = resolveAuthenticatedUser(authentication);
         return ResponseEntity.ok(userEntitlementService.getEntitlementsByUserId(user.getId()));
+    }
+
+    @GetMapping("/me/payments")
+    @Operation(summary = "Get the currently authenticated user's payments")
+    public ResponseEntity<List<PaymentTransaction>> myPayments(Authentication authentication) {
+        User user = resolveAuthenticatedUser(authentication);
+        return ResponseEntity.ok(paymentService.getTransactionsByUserId(user.getId()));
     }
 
     @PostMapping("/logout")

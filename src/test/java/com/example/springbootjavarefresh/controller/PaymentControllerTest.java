@@ -74,6 +74,7 @@ class PaymentControllerTest {
         transaction.setStatus(PaymentTransactionStatus.CHECKOUT_CREATED);
         transaction.setCheckoutUrl("https://stripe.test/checkout");
         when(paymentService.getTransactionById(99L)).thenReturn(Optional.of(transaction));
+        when(paymentService.refreshTransactionStatusFromStripe(transaction)).thenReturn(transaction);
 
         mockMvc.perform(get("/api/payments/99"))
                 .andExpect(status().isOk())

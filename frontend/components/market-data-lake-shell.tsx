@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, buildSession } from "../lib/api";
-import { describeProductMode, formatDate, formatMoney } from "../lib/format";
-import { loadSession, saveSession } from "../lib/storage";
+import { describeProductMode, describeStorage, formatDate, formatMoney } from "../lib/format";
+import { loadPendingCheckoutId, loadSession, savePendingCheckoutId, saveSession } from "../lib/storage";
 import {
   AdminDashboard,
+  CatalogItem,
   DataProduct,
   Entitlement,
   MarketData,
@@ -28,13 +29,28 @@ type AuthForm = {
   phoneNumber: string;
 };
 
+type AdminCatalogItemForm = {
+  code: string;
+  name: string;
+  summary: string;
+  description: string;
+  marketDataType: CatalogItem["marketDataType"];
+  storageSystem: CatalogItem["storageSystem"];
+  deliveryApiPath: string;
+  lakeQueryReference: string;
+  sampleSymbols: string;
+  coverageStartDate: string;
+  coverageEndDate: string;
+};
+
 type AdminProductForm = {
+  catalogItemId: string;
   code: string;
   name: string;
   description: string;
   price: string;
   currency: string;
-  accessType: "ONE_TIME" | "SUBSCRIPTION";
+  accessType: "ONE_TIME_PURCHASE" | "SUBSCRIPTION";
   billingInterval: "ONE_TIME" | "MONTHLY" | "YEARLY";
   batchDownloadLimitMb: string;
   realtimeSubscriptionLimit: string;
@@ -49,6 +65,13 @@ type MarketDataForm = {
   dataType: MarketData["dataType"];
 };
 
+type CartEntry = {
+  catalogItemId: number;
+  catalogItemName: string;
+  product: DataProduct;
+  quantity: number;
+};
+
 const defaultAuthForm: AuthForm = {
   email: "",
   password: "",
@@ -59,13 +82,28 @@ const defaultAuthForm: AuthForm = {
   phoneNumber: ""
 };
 
+const defaultCatalogItemForm: AdminCatalogItemForm = {
+  code: "",
+  name: "",
+  summary: "",
+  description: "",
+  marketDataType: "QUOTE",
+  storageSystem: "DELTA_LAKE",
+  deliveryApiPath: "/api/market-data/query",
+  lakeQueryReference: "lake.market_quotes",
+  sampleSymbols: "AAPL,MSFT,NVDA",
+  coverageStartDate: "2026-01-01",
+  coverageEndDate: ""
+};
+
 const defaultProductForm: AdminProductForm = {
+  catalogItemId: "",
   code: "",
   name: "",
   description: "",
   price: "49.99",
   currency: "usd",
-  accessType: "ONE_TIME",
+  accessType: "ONE_TIME_PURCHASE",
   billingInterval: "ONE_TIME",
   batchDownloadLimitMb: "500",
   realtimeSubscriptionLimit: "1",
@@ -77,24 +115,28 @@ const defaultMarketDataForm: MarketDataForm = {
   price: "189.42",
   volume: "1000",
   timestamp: new Date().toISOString().slice(0, 16),
-  dataType: "TICK"
+  dataType: "QUOTE"
 };
 
 export function MarketDataLakeShell() {
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [authForm, setAuthForm] = useState<AuthForm>(defaultAuthForm);
   const [session, setSession] = useState<SessionState | null>(null);
-  const [products, setProducts] = useState<DataProduct[]>([]);
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  const [selectedCatalogItemId, setSelectedCatalogItemId] = useState<number | null>(null);
   const [marketData, setMarketData] = useState<MarketData[]>([]);
   const [marketDataRuntime, setMarketDataRuntime] = useState<MarketDataRuntimeStatus | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlement[]>([]);
+  const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
-  const [checkoutStatus, setCheckoutStatus] = useState<string>("");
+  const [cart, setCart] = useState<Record<number, CartEntry>>({});
+  const [checkoutStatus, setCheckoutStatus] = useState("");
   const [lastTransaction, setLastTransaction] = useState<PaymentTransaction | null>(null);
-  const [message, setMessage] = useState<string>("Loading catalog and market data.");
-  const [error, setError] = useState<string>("");
+  const [message, setMessage] = useState("Loading the Market Data Lake catalog.");
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [catalogItemForm, setCatalogItemForm] = useState<AdminCatalogItemForm>(defaultCatalogItemForm);
   const [productForm, setProductForm] = useState<AdminProductForm>(defaultProductForm);
   const [marketDataForm, setMarketDataForm] = useState<MarketDataForm>(defaultMarketDataForm);
   const privateRequestVersion = useRef(0);
@@ -111,11 +153,16 @@ export function MarketDataLakeShell() {
       const authError = params.get("authError");
       const authSuccess = params.get("authSuccess");
       const messageParam = params.get("message");
+      const checkoutState = params.get("checkout");
 
       if (authError) {
         setError(messageParam || "Google sign-in failed.");
       } else if (authSuccess === "google") {
         setMessage(messageParam || "Signed in with Google successfully.");
+      } else if (checkoutState === "success") {
+        setMessage("Stripe checkout completed. Refreshing purchase state...");
+      } else if (checkoutState === "cancelled") {
+        setMessage("Stripe checkout was cancelled.");
       }
     }
   }, []);
@@ -129,6 +176,7 @@ export function MarketDataLakeShell() {
 
     if (!session?.accessToken) {
       setEntitlements([]);
+      setPayments([]);
       setDashboard(null);
       saveSession(null);
       return;
@@ -138,17 +186,76 @@ export function MarketDataLakeShell() {
     void refreshPrivateData(session, requestVersion);
   }, [session]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !session?.accessToken) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const checkoutState = params.get("checkout");
+    const pendingCheckoutId = loadPendingCheckoutId();
+    if ((checkoutState !== "success" && checkoutState !== "cancelled") || !pendingCheckoutId) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const transaction = await pollTransactionForCompletion(pendingCheckoutId, session.accessToken);
+        setLastTransaction(transaction);
+        setCheckoutStatus(`Payment status: ${transaction.status}`);
+        if (transaction.status === "SUCCEEDED") {
+          setEntitlements(await api.myEntitlements(session.accessToken));
+          setPayments(await api.myPayments(session.accessToken));
+          setCart({});
+          savePendingCheckoutId(null);
+          setMessage("Payment completed and entitlements refreshed.");
+        } else if (transaction.status === "FAILED") {
+          savePendingCheckoutId(null);
+          setError(transaction.errorMessage || "Stripe checkout did not complete successfully.");
+        } else {
+          setMessage("Stripe checkout was created. Waiting for payment confirmation...");
+        }
+      } catch (requestError) {
+        setError(getErrorMessage(requestError));
+      } finally {
+        const cleaned = new URL(window.location.href);
+        cleaned.searchParams.delete("checkout");
+        window.history.replaceState({}, "", cleaned.toString());
+      }
+    })();
+  }, [session]);
+
+  const selectedCatalogItem = useMemo(
+    () => catalogItems.find((item) => item.id === selectedCatalogItemId) ?? catalogItems[0] ?? null,
+    [catalogItems, selectedCatalogItemId]
+  );
+
+  const cartEntries = useMemo(() => Object.values(cart), [cart]);
+  const cartTotal = useMemo(
+    () => cartEntries.reduce((sum, entry) => sum + Number(entry.product.price) * entry.quantity, 0),
+    [cartEntries]
+  );
+
+  useEffect(() => {
+    if (!selectedCatalogItemId && catalogItems.length > 0) {
+      setSelectedCatalogItemId(catalogItems[0].id);
+    }
+    if (!productForm.catalogItemId && catalogItems.length > 0) {
+      setProductForm((current) => ({ ...current, catalogItemId: String(catalogItems[0].id) }));
+    }
+  }, [catalogItems, selectedCatalogItemId, productForm.catalogItemId]);
+
   async function refreshPublicData() {
     try {
-      const [catalog, feed, runtime] = await Promise.all([
-        api.products(),
+      const [items, feed, runtime] = await Promise.all([
+        api.catalogItems(),
         api.marketData(),
         api.marketDataRuntime()
       ]);
-      setProducts(catalog);
+      setCatalogItems(items);
       setMarketData(feed);
       setMarketDataRuntime(runtime);
-      setMessage("Catalog is live and market-data previews are available.");
+      setMessage("Catalog metadata is live. Pick a dataset, select an access offer, and build a cart.");
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     }
@@ -161,10 +268,7 @@ export function MarketDataLakeShell() {
         return;
       }
 
-      const updatedSession = {
-        ...nextSession,
-        profile
-      };
+      const updatedSession = { ...nextSession, profile };
       setSession(updatedSession);
 
       const userEntitlements = await api.myEntitlements(nextSession.accessToken);
@@ -172,6 +276,12 @@ export function MarketDataLakeShell() {
         return;
       }
       setEntitlements(userEntitlements);
+
+      const userPayments = await api.myPayments(nextSession.accessToken);
+      if (privateRequestVersion.current !== requestVersion) {
+        return;
+      }
+      setPayments(userPayments);
 
       if (profile.role === "ADMIN") {
         const adminDashboard = await api.adminDashboard(nextSession.accessToken);
@@ -213,7 +323,9 @@ export function MarketDataLakeShell() {
       } else {
         setSession(null);
       }
-      setMessage(response.message || (authMode === "signup" ? "Account created." : "Signed in successfully."));
+      setMessage(
+        response.message || (authMode === "signup" ? "Account created. Check your inbox to verify the user." : "Signed in successfully.")
+      );
       setAuthForm(defaultAuthForm);
       if (authMode === "signup") {
         setAuthMode("signin");
@@ -232,34 +344,120 @@ export function MarketDataLakeShell() {
       try {
         await api.logout(session.accessToken);
       } catch {
-        // Logout is client-side only for now.
+        // Client-side logout still clears the session.
       }
     }
 
     setSession(null);
     setEntitlements([]);
+    setPayments([]);
     setDashboard(null);
     setCheckoutStatus("");
     setLastTransaction(null);
     setMessage("Signed out.");
   }
 
-  async function handleCheckout(product: DataProduct) {
+  function handleAddToCart(product: DataProduct) {
+    const quantity = quantities[product.id] ?? 1;
+    const owningCatalogItem = catalogItems.find((item) => item.id === product.catalogItemId);
+    if (!owningCatalogItem) {
+      setError("Unable to resolve the selected catalog item for this offer.");
+      return;
+    }
+
+    const existingEntries = Object.values(cart);
+    if (existingEntries.length > 0) {
+      const firstProduct = existingEntries[0].product;
+      const mixedAccessType = firstProduct.accessType !== product.accessType;
+      const mixedSubscriptionCadence =
+        firstProduct.accessType === "SUBSCRIPTION" &&
+        product.accessType === "SUBSCRIPTION" &&
+        firstProduct.billingInterval !== product.billingInterval;
+      const mixedCurrency = firstProduct.currency.toLowerCase() !== product.currency.toLowerCase();
+      if (mixedAccessType || mixedSubscriptionCadence || mixedCurrency) {
+        setError(
+          "This checkout supports one pricing mode per cart. Use either one-time offers or same-interval subscriptions in the same currency."
+        );
+        return;
+      }
+    }
+
+    setCart((current) => ({
+      ...current,
+      [product.id]: {
+        catalogItemId: owningCatalogItem.id,
+        catalogItemName: owningCatalogItem.name,
+        product,
+        quantity
+      }
+    }));
+    setQuantities((current) => ({
+      ...current,
+      [product.id]: quantity
+    }));
+    setMessage(`${product.name} was ${cart[product.id] ? "updated in" : "added to"} the cart.`);
+    setError("");
+  }
+
+  function updateCartQuantity(productId: number, quantity: number) {
+    const normalizedQuantity = Math.max(1, quantity);
+    setQuantities((current) => ({
+      ...current,
+      [productId]: normalizedQuantity
+    }));
+    setCart((current) => {
+      const entry = current[productId];
+      if (!entry) {
+        return current;
+      }
+      return {
+        ...current,
+        [productId]: {
+          ...entry,
+          quantity: normalizedQuantity
+        }
+      };
+    });
+  }
+
+  function removeFromCart(productId: number) {
+    const removedEntry = cart[productId];
+    setCart((current) => {
+      const next = { ...current };
+      delete next[productId];
+      return next;
+    });
+    setMessage(removedEntry ? `${removedEntry.product.name} was removed from the cart.` : "Offer removed from the cart.");
+  }
+
+  function clearCart() {
+    setCart({});
+    setMessage("Shopping cart cleared.");
+  }
+
+  async function handleCartCheckout() {
     if (!session?.accessToken) {
       setError("Sign in before checkout.");
+      return;
+    }
+    if (cartEntries.length === 0) {
+      setError("Add at least one catalog offer to the cart before checkout.");
       return;
     }
 
     setBusy(true);
     setError("");
-      setCheckoutStatus(`Creating Stripe checkout for ${product.code}...`);
+    setCheckoutStatus("Creating Stripe checkout for the current cart...");
 
     try {
       const origin = typeof window === "undefined" ? "http://localhost:3000" : window.location.origin;
       const transaction = await api.checkout(
         {
           userId: session.userId,
-          productId: product.id,
+          items: cartEntries.map((entry) => ({
+            productId: entry.product.id,
+            quantity: entry.quantity
+          })),
           successUrl: `${origin}/?checkout=success`,
           cancelUrl: `${origin}/?checkout=cancelled`
         },
@@ -267,16 +465,19 @@ export function MarketDataLakeShell() {
       );
 
       setLastTransaction(transaction);
+      savePendingCheckoutId(transaction.id);
       const resolvedTransaction = await pollTransaction(transaction.id, session.accessToken);
       setLastTransaction(resolvedTransaction);
       setCheckoutStatus(`Payment status: ${resolvedTransaction.status}`);
 
       if (resolvedTransaction.checkoutUrl && typeof window !== "undefined") {
-        window.open(resolvedTransaction.checkoutUrl, "_blank", "noopener,noreferrer");
+        setMessage("Stripe Checkout is ready. Redirecting now...");
+        window.location.href = resolvedTransaction.checkoutUrl;
       }
     } catch (requestError) {
       setError(getErrorMessage(requestError));
       setCheckoutStatus("");
+      savePendingCheckoutId(null);
     } finally {
       setBusy(false);
     }
@@ -286,6 +487,18 @@ export function MarketDataLakeShell() {
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const transaction = await api.paymentStatus(transactionId, token);
       if (transaction.checkoutUrl || transaction.status === "FAILED") {
+        return transaction;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+    }
+
+    return api.paymentStatus(transactionId, token);
+  }
+
+  async function pollTransactionForCompletion(transactionId: number, token: string) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const transaction = await api.paymentStatus(transactionId, token);
+      if (transaction.status === "SUCCEEDED" || transaction.status === "FAILED") {
         return transaction;
       }
       await new Promise((resolve) => window.setTimeout(resolve, 1500));
@@ -326,6 +539,34 @@ export function MarketDataLakeShell() {
     }
   }
 
+  async function handleCreateCatalogItem() {
+    if (!session?.accessToken) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const createdItem = await api.createCatalogItem(
+        {
+          ...catalogItemForm,
+          coverageStartDate: catalogItemForm.coverageStartDate || null,
+          coverageEndDate: catalogItemForm.coverageEndDate || null
+        },
+        session.accessToken
+      );
+      setCatalogItemForm(defaultCatalogItemForm);
+      await refreshPublicData();
+      setSelectedCatalogItemId(createdItem.id);
+      setProductForm((current) => ({ ...current, catalogItemId: String(createdItem.id) }));
+      setMessage("Catalog item created.");
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateProduct() {
     if (!session?.accessToken) {
       return;
@@ -337,19 +578,23 @@ export function MarketDataLakeShell() {
       await api.createProduct(
         {
           ...productForm,
+          catalogItemId: Number(productForm.catalogItemId),
           price: Number(productForm.price),
-          batchDownloadLimitMb: Number(productForm.batchDownloadLimitMb),
-          realtimeSubscriptionLimit: Number(productForm.realtimeSubscriptionLimit),
-          maxRealtimePayloadKb: Number(productForm.maxRealtimePayloadKb)
+          batchDownloadLimitMb: toOptionalNumber(productForm.batchDownloadLimitMb),
+          realtimeSubscriptionLimit: toOptionalNumber(productForm.realtimeSubscriptionLimit),
+          maxRealtimePayloadKb: toOptionalNumber(productForm.maxRealtimePayloadKb)
         },
         session.accessToken
       );
-      setProductForm(defaultProductForm);
+      setProductForm((current) => ({
+        ...defaultProductForm,
+        catalogItemId: current.catalogItemId
+      }));
       await refreshPublicData();
       if (session.profile?.role === "ADMIN") {
         setDashboard(await api.adminDashboard(session.accessToken));
       }
-      setMessage("Catalog product created.");
+      setMessage("Sellable offer created.");
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -392,15 +637,16 @@ export function MarketDataLakeShell() {
       <section className="hero">
         <div className="hero-card">
           <div className="eyebrow">Market Data Lake</div>
-          <h1>Reactive trading-data storefront with checkout, access control, and admin audit.</h1>
+          <h1>Catalog first. Lake metadata first. Checkout after selection.</h1>
           <p>
-            Browse data products, compare streaming versus one-time delivery, sign up for access, launch Stripe
-            checkout, and manage catalog or audit flows from a separate web container wired to the Java backend.
+            The main storefront now distinguishes what exists in the data lake from how it is sold. Catalog items
+            describe datasets and query paths. Separate offers define one-time downloads or subscriptions that can be
+            added to the shopping cart and sent to Stripe checkout.
           </p>
           <div className="hero-badges">
-            <span className="badge">Next.js UI container</span>
-            <span className="badge">Java API backend</span>
-            <span className="badge">Stripe sandbox checkout</span>
+            <span className="badge">Catalog metadata</span>
+            <span className="badge">Sellable offers</span>
+            <span className="badge">Stripe cart checkout</span>
             <span className="badge">Stub market-data preview</span>
           </div>
         </div>
@@ -409,8 +655,8 @@ export function MarketDataLakeShell() {
           <h2>{profile ? `${profile.firstName} ${profile.lastName}` : "No active session"}</h2>
           <p>
             {profile
-              ? `${profile.email} is signed in with role ${profile.role}. API key based downstream usage is available from the UI.`
-              : "Register or sign in to unlock checkout, entitlement tracking, and administration views."}
+              ? `${profile.email} is signed in with role ${profile.role}. Add offers to the cart, launch checkout, and inspect entitlements or admin audit views.`
+              : "Register or sign in to unlock checkout, entitlements, API-key usage tracking, and administration views."}
           </p>
           <div className="actions">
             {profile ? (
@@ -446,7 +692,7 @@ export function MarketDataLakeShell() {
           <div className="section-header">
             <div>
               <h2>Identity</h2>
-              <div className="panel-intro">Sign up, sign in, and keep the browser session synced with JWT and API key state.</div>
+              <div className="panel-intro">Sign up, verify, sign in, and keep the browser session synced with JWT and API key state.</div>
             </div>
           </div>
           {!profile ? (
@@ -463,36 +709,17 @@ export function MarketDataLakeShell() {
                 <div className="form-grid">
                   <div className="field">
                     <label>Email</label>
-                    <input
-                      value={authForm.email}
-                      onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })}
-                    />
+                    <input value={authForm.email} onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })} />
                   </div>
                   {authMode === "signup" ? (
                     <div className="form-row">
-                      <div className="field">
-                        <label>First name</label>
-                        <input
-                          value={authForm.firstName}
-                          onChange={(event) => setAuthForm({ ...authForm, firstName: event.target.value })}
-                        />
-                      </div>
-                      <div className="field">
-                        <label>Last name</label>
-                        <input
-                          value={authForm.lastName}
-                          onChange={(event) => setAuthForm({ ...authForm, lastName: event.target.value })}
-                        />
-                      </div>
+                      <Field label="First name" value={authForm.firstName} onChange={(value) => setAuthForm({ ...authForm, firstName: value })} />
+                      <Field label="Last name" value={authForm.lastName} onChange={(value) => setAuthForm({ ...authForm, lastName: value })} />
                     </div>
                   ) : null}
                   <div className="field">
                     <label>Password</label>
-                    <input
-                      type="password"
-                      value={authForm.password}
-                      onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
-                    />
+                    <input type="password" value={authForm.password} onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })} />
                     {passwordTooShort ? (
                       <div className="helper" role="alert">
                         Password must be at least 8 characters long.
@@ -502,28 +729,10 @@ export function MarketDataLakeShell() {
                   {authMode === "signup" ? (
                     <>
                       <div className="form-row">
-                        <div className="field">
-                          <label>Company</label>
-                          <input
-                            value={authForm.company}
-                            onChange={(event) => setAuthForm({ ...authForm, company: event.target.value })}
-                          />
-                        </div>
-                        <div className="field">
-                          <label>Country</label>
-                          <input
-                            value={authForm.country}
-                            onChange={(event) => setAuthForm({ ...authForm, country: event.target.value })}
-                          />
-                        </div>
+                        <Field label="Company" value={authForm.company} onChange={(value) => setAuthForm({ ...authForm, company: value })} />
+                        <Field label="Country" value={authForm.country} onChange={(value) => setAuthForm({ ...authForm, country: value })} />
                       </div>
-                      <div className="field">
-                        <label>Phone number</label>
-                        <input
-                          value={authForm.phoneNumber}
-                          onChange={(event) => setAuthForm({ ...authForm, phoneNumber: event.target.value })}
-                        />
-                      </div>
+                      <Field label="Phone number" value={authForm.phoneNumber} onChange={(value) => setAuthForm({ ...authForm, phoneNumber: value })} />
                     </>
                   ) : null}
                   <button className="button" onClick={handleAuthSubmit} disabled={busy}>
@@ -541,18 +750,20 @@ export function MarketDataLakeShell() {
                 </div>
               </div>
               <div className="form-card">
-                <strong>What this session unlocks</strong>
+                <strong>What the application now separates</strong>
                 <div className="meta-list">
-                  <span>Catalog and market data browsing remain open for evaluation.</span>
-                  <span>Authenticated users can start Stripe checkout and track entitlements.</span>
-                  <span>API key based usage recording supports stream and batch quota control.</span>
-                  <span>Admin users get dashboard, product creation, and audit access.</span>
+                  <span>Catalog items describe what datasets exist in the lake and how they can be queried.</span>
+                  <span>Offers describe the price, access mode, and quota package sold for each catalog item.</span>
+                  <span>The shopping cart aggregates offers before Stripe checkout instead of forcing one-off purchase actions.</span>
+                  <span>Market data preview remains separate from the catalog because it represents runtime content, not metadata.</span>
                 </div>
               </div>
             </div>
           ) : (
             <div className="card">
-              <strong>{profile.firstName} {profile.lastName}</strong>
+              <strong>
+                {profile.firstName} {profile.lastName}
+              </strong>
               <div className="meta-list">
                 <span>{profile.email}</span>
                 <span>Role: {profile.role}</span>
@@ -568,58 +779,235 @@ export function MarketDataLakeShell() {
           <div className="section-header">
             <div>
               <h2>Your Access</h2>
-              <div className="panel-intro">Purchased or subscribed products appear here with current usage consumption.</div>
+              <div className="panel-intro">Purchased or subscribed offers appear here with current usage and purchased unit counts.</div>
             </div>
           </div>
           {profile ? (
-            entitlements.length > 0 ? (
-              <div className="audit-grid">
-                {entitlements.map((entitlement) => (
-                  <div className="activity-card" key={entitlement.id}>
-                    <strong>{entitlement.product.name}</strong>
-                    <div className="meta-list">
-                      <span>Status: {entitlement.status}</span>
-                      <span>Mode: {describeProductMode(entitlement.product)}</span>
-                      <span>Batch used: {entitlement.batchDownloadUsedMb} MB</span>
-                      <span>Realtime used: {entitlement.realtimeSubscriptionsUsed}</span>
-                      <span>Payload used: {entitlement.payloadKilobytesUsed} KB</span>
-                      <span>Granted: {formatDate(entitlement.grantedAt)}</span>
+            entitlements.length > 0 || payments.length > 0 ? (
+              <div className="grid">
+                <div>
+                  <h3>Entitlements</h3>
+                  {entitlements.length > 0 ? (
+                    <div className="audit-grid">
+                      {entitlements.map((entitlement) => (
+                        <div className="activity-card" key={entitlement.id}>
+                          <strong>{entitlement.product.name}</strong>
+                          <div className="meta-list">
+                            <span>Status: {entitlement.status}</span>
+                            <span>Mode: {describeProductMode(entitlement.product)}</span>
+                            <span>Purchased units: {entitlement.purchasedUnits}</span>
+                            <span>Batch used: {entitlement.batchDownloadUsedMb} MB</span>
+                            <span>Realtime used: {entitlement.realtimeSubscriptionsUsed}</span>
+                            <span>Payload used: {entitlement.payloadKilobytesUsed} KB</span>
+                            <span>Granted: {formatDate(entitlement.grantedAt)}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
+                  ) : (
+                    <div className="helper">No entitlements granted yet for this user.</div>
+                  )}
+                </div>
+                <div>
+                  <h3>Recent Purchases</h3>
+                  <div className="audit-grid">
+                    {payments.map((payment) => (
+                      <div className="activity-card" key={payment.id}>
+                        <strong>{payment.items?.map((item) => `${item.product.code} x${item.quantity}`).join(", ") || payment.product.name}</strong>
+                        <div className="meta-list">
+                          <span>Status: {payment.status}</span>
+                          <span>Total: {formatMoney(payment.amount, payment.currency)}</span>
+                          <span>Created: {formatDate(payment.createdAt)}</span>
+                          <span>Updated: {formatDate(payment.updatedAt)}</span>
+                          <span>{payment.errorMessage ? `Error: ${payment.errorMessage}` : "Stripe checkout recorded."}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
             ) : (
-              <div className="helper">No entitlements yet. Complete checkout to grant access.</div>
+              <div className="helper">No purchases or entitlements yet. Add offers to the cart and complete checkout to grant access.</div>
             )
           ) : (
-            <div className="helper">Sign in to view purchased products, subscription entitlements, and quota usage.</div>
+            <div className="helper">Sign in to view purchased offers, subscription entitlements, and quota usage.</div>
           )}
         </div>
       </section>
 
-      <section className="panel" id="catalog">
-        <div className="section-header">
-          <div>
-            <h2>Data Catalog</h2>
-            <div className="panel-intro">
-              Explore unit pricing, delivery mode, and quota limits before launching Stripe checkout.
+      <section className="grid catalog-layout">
+        <div className="panel">
+          <div className="section-header">
+            <div>
+              <h2>Data Catalog</h2>
+              <div className="panel-intro">Catalog items represent what is available in the lake, independent from pricing and purchase packaging.</div>
             </div>
           </div>
+          <div className="catalog-list">
+            {catalogItems.map((item) => (
+              <button
+                key={item.id}
+                className={`catalog-list-item ${selectedCatalogItem?.id === item.id ? "catalog-list-item-active" : ""}`}
+                onClick={() => setSelectedCatalogItemId(item.id)}
+              >
+                <span className="catalog-list-title">{item.name}</span>
+                <span className="helper">{item.marketDataType} · {describeStorage(item.storageSystem)}</span>
+                <span className="helper">{item.offers.length} linked offer{item.offers.length === 1 ? "" : "s"}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="catalog-grid">
-          {products.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              quantity={quantities[product.id] ?? 1}
-              onQuantityChange={(productId, quantity) =>
-                setQuantities((current) => ({ ...current, [productId]: quantity }))
-              }
-              onCheckout={handleCheckout}
-              onUsageAction={profile ? handleUsage : undefined}
-              disabled={busy}
-            />
-          ))}
+
+        <div className="panel">
+          <div className="section-header">
+            <div>
+              <h2>Catalog Details</h2>
+              <div className="panel-intro">Click a catalog item to inspect its lake metadata, then choose an offer to add to the cart.</div>
+            </div>
+          </div>
+          {selectedCatalogItem ? (
+            <div className="grid">
+              <div className="card">
+                <div className="pill-row">
+                  <span className="pill">{selectedCatalogItem.marketDataType}</span>
+                  <span className="pill">{describeStorage(selectedCatalogItem.storageSystem)}</span>
+                  <span className="pill">{selectedCatalogItem.code}</span>
+                </div>
+                <strong>{selectedCatalogItem.name}</strong>
+                <div className="meta-list">
+                  <span>{selectedCatalogItem.summary || "No summary provided."}</span>
+                  <span>{selectedCatalogItem.description || "No detailed description provided."}</span>
+                  <span>Delivery API: {selectedCatalogItem.deliveryApiPath || "Not assigned"}</span>
+                  <span>Lake query reference: {selectedCatalogItem.lakeQueryReference || "Not assigned"}</span>
+                  <span>Sample symbols: {selectedCatalogItem.sampleSymbols || "Not assigned"}</span>
+                  <span>
+                    Coverage: {selectedCatalogItem.coverageStartDate || "Unknown"} to {selectedCatalogItem.coverageEndDate || "Open"}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <div className="section-header">
+                  <div>
+                    <h3>Purchase or Subscribe</h3>
+                    <div className="helper">Offers define how this dataset is sold through the data shop.</div>
+                  </div>
+                </div>
+                <div className="catalog-grid">
+                  {selectedCatalogItem.offers.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      quantity={quantities[product.id] ?? 1}
+                      cartQuantity={cart[product.id]?.quantity ?? 0}
+                      onQuantityChange={(productId, quantity) => setQuantities((current) => ({ ...current, [productId]: quantity }))}
+                      onAddToCart={handleAddToCart}
+                      onRemoveFromCart={removeFromCart}
+                      onUsageAction={profile ? handleUsage : undefined}
+                      disabled={busy}
+                    />
+                  ))}
+                </div>
+                {selectedCatalogItem.offers.length === 0 ? (
+                  <div className="helper">No sellable offers are linked to this catalog item yet.</div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="helper">No catalog items available yet.</div>
+          )}
+        </div>
+      </section>
+
+      <section className="columns">
+        <div className="panel">
+          <div className="section-header">
+            <div>
+              <h2>Shopping Cart</h2>
+              <div className="panel-intro">Cart items are checkout-ready Stripe offers grouped after catalog selection.</div>
+            </div>
+          </div>
+          {cartEntries.length > 0 ? (
+            <div className="activity-list">
+              {cartEntries.map((entry) => (
+                <div className="activity-card" key={entry.product.id}>
+                  <strong>{entry.product.name}</strong>
+                  <div className="meta-list">
+                    <span>Catalog item: {entry.catalogItemName}</span>
+                    <span>Mode: {describeProductMode(entry.product)}</span>
+                    <span>Unit price: {formatMoney(entry.product.price, entry.product.currency)}</span>
+                  </div>
+                  <div className="form-row">
+                    <Field
+                      label="Units"
+                      value={String(entry.quantity)}
+                      onChange={(value) => updateCartQuantity(entry.product.id, Math.max(1, Number(value) || 1))}
+                      type="number"
+                    />
+                    <div className="field">
+                      <label>Line total</label>
+                      <input readOnly value={formatMoney(Number(entry.product.price) * entry.quantity, entry.product.currency)} />
+                    </div>
+                  </div>
+                  <div className="actions">
+                    <button
+                      className="ghost-button"
+                      onClick={() => updateCartQuantity(entry.product.id, entry.quantity - 1)}
+                      disabled={entry.quantity <= 1}
+                    >
+                      -1 unit
+                    </button>
+                    <button className="ghost-button" onClick={() => updateCartQuantity(entry.product.id, entry.quantity + 1)}>
+                      +1 unit
+                    </button>
+                    <button className="ghost-button" onClick={() => removeFromCart(entry.product.id)}>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="helper">The cart is empty. Start by clicking a catalog item and adding one of its offers.</div>
+          )}
+        </div>
+
+        <div className="panel">
+          <div className="section-header">
+            <div>
+              <h2>Checkout</h2>
+              <div className="panel-intro">Stripe checkout is created from the cart, not directly from a catalog row.</div>
+            </div>
+          </div>
+          <div className="card">
+            <div className="meta-list">
+              <span>Items in cart: {cartEntries.length}</span>
+              <span>Total: {formatMoney(cartTotal, cartEntries[0]?.product.currency || "usd")}</span>
+              <span>Checkout mode: {cartEntries[0]?.product.accessType === "SUBSCRIPTION" ? "Subscription" : "One-time payment"}</span>
+            </div>
+            <div className="actions">
+              <button className="button" onClick={handleCartCheckout} disabled={busy || cartEntries.length === 0}>
+                Checkout with Stripe
+              </button>
+              <button className="ghost-button" onClick={clearCart} disabled={busy || cartEntries.length === 0}>
+                Clear cart
+              </button>
+            </div>
+          </div>
+          <div className="helper">
+            One cart must keep the same currency and pricing mode. Mixed subscription and one-time offers must be checked out separately.
+          </div>
+          {lastTransaction?.checkoutUrl ? (
+            <div className="card">
+              <strong>Stripe checkout ready</strong>
+              <div className="helper">If the automatic redirect did not happen, open Stripe Checkout manually.</div>
+              <div className="actions">
+                <a className="button" href={lastTransaction.checkoutUrl} target="_blank" rel="noreferrer">
+                  Open Stripe Checkout
+                </a>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -628,16 +1016,11 @@ export function MarketDataLakeShell() {
           <div>
             <h2>Market Data Preview</h2>
             <div className="panel-intro">
-              Preview-only market-data cards are currently served from a stub runtime while the team focuses on shop
-              flows, Stripe, and entitlement UX.
+              Market data rows remain separate from the catalog because they represent runtime content, not sellable metadata.
             </div>
           </div>
         </div>
-        {marketDataRuntime ? (
-          <div className="status warn">
-            {marketDataRuntime.message}
-          </div>
-        ) : null}
+        {marketDataRuntime ? <div className="status warn">{marketDataRuntime.message}</div> : null}
         <div className="market-grid">
           {Object.entries(groupedMarketData).map(([dataType, rows]) => (
             <div className="market-card" key={dataType}>
@@ -660,12 +1043,12 @@ export function MarketDataLakeShell() {
             <div className="section-header">
               <div>
                 <h2>Administration</h2>
-                <div className="panel-intro">Control catalog and market data inputs, then audit operational activity.</div>
+                <div className="panel-intro">Manage catalog metadata, linked offers, preview rows, and audit activity.</div>
               </div>
             </div>
             <div className="stats-grid">
               <StatCard label="Users" value={dashboard?.totalUsers ?? 0} />
-              <StatCard label="Products" value={dashboard?.totalProducts ?? 0} />
+              <StatCard label="Offers" value={dashboard?.totalProducts ?? 0} />
               <StatCard label="Payments" value={dashboard?.totalPayments ?? 0} />
               <StatCard label="API keys" value={dashboard?.totalApiKeys ?? 0} />
               <StatCard label="Usage events" value={dashboard?.totalUsageRecords ?? 0} />
@@ -675,11 +1058,83 @@ export function MarketDataLakeShell() {
 
           <div className="columns">
             <div className="panel">
-              <h3>Create catalog product</h3>
+              <h3>Create catalog item</h3>
               <div className="form-grid">
                 <div className="form-row">
-                  <Field label="Code" value={productForm.code} onChange={(value) => setProductForm({ ...productForm, code: value })} />
-                  <Field label="Name" value={productForm.name} onChange={(value) => setProductForm({ ...productForm, name: value })} />
+                  <Field label="Code" value={catalogItemForm.code} onChange={(value) => setCatalogItemForm({ ...catalogItemForm, code: value })} />
+                  <Field label="Name" value={catalogItemForm.name} onChange={(value) => setCatalogItemForm({ ...catalogItemForm, name: value })} />
+                </div>
+                <Field label="Summary" value={catalogItemForm.summary} onChange={(value) => setCatalogItemForm({ ...catalogItemForm, summary: value })} />
+                <Field
+                  label="Description"
+                  value={catalogItemForm.description}
+                  onChange={(value) => setCatalogItemForm({ ...catalogItemForm, description: value })}
+                  textarea
+                />
+                <div className="form-row">
+                  <SelectField
+                    label="Market data type"
+                    value={catalogItemForm.marketDataType}
+                    onChange={(value) => setCatalogItemForm({ ...catalogItemForm, marketDataType: value as CatalogItem["marketDataType"] })}
+                    options={["QUOTE", "TICK", "NEWS", "FUNDAMENTALS", "CRYPTO", "OTHER"]}
+                  />
+                  <SelectField
+                    label="Storage system"
+                    value={catalogItemForm.storageSystem}
+                    onChange={(value) => setCatalogItemForm({ ...catalogItemForm, storageSystem: value as CatalogItem["storageSystem"] })}
+                    options={["DELTA_LAKE", "ICEBERG", "STUB", "OTHER"]}
+                  />
+                </div>
+                <div className="form-row">
+                  <Field
+                    label="Delivery API path"
+                    value={catalogItemForm.deliveryApiPath}
+                    onChange={(value) => setCatalogItemForm({ ...catalogItemForm, deliveryApiPath: value })}
+                  />
+                  <Field
+                    label="Lake query reference"
+                    value={catalogItemForm.lakeQueryReference}
+                    onChange={(value) => setCatalogItemForm({ ...catalogItemForm, lakeQueryReference: value })}
+                  />
+                </div>
+                <Field
+                  label="Sample symbols"
+                  value={catalogItemForm.sampleSymbols}
+                  onChange={(value) => setCatalogItemForm({ ...catalogItemForm, sampleSymbols: value })}
+                />
+                <div className="form-row">
+                  <Field
+                    label="Coverage start"
+                    value={catalogItemForm.coverageStartDate}
+                    onChange={(value) => setCatalogItemForm({ ...catalogItemForm, coverageStartDate: value })}
+                    type="date"
+                  />
+                  <Field
+                    label="Coverage end"
+                    value={catalogItemForm.coverageEndDate}
+                    onChange={(value) => setCatalogItemForm({ ...catalogItemForm, coverageEndDate: value })}
+                    type="date"
+                  />
+                </div>
+                <button className="button" onClick={handleCreateCatalogItem} disabled={busy}>
+                  Publish catalog item
+                </button>
+              </div>
+            </div>
+
+            <div className="panel">
+              <h3>Create sellable offer</h3>
+              <div className="form-grid">
+                <SelectField
+                  label="Catalog item"
+                  value={productForm.catalogItemId}
+                  onChange={(value) => setProductForm({ ...productForm, catalogItemId: value })}
+                  options={catalogItems.map((item) => `${item.id}:${item.name}`)}
+                  optionValueMode="split-id"
+                />
+                <div className="form-row">
+                  <Field label="Offer code" value={productForm.code} onChange={(value) => setProductForm({ ...productForm, code: value })} />
+                  <Field label="Offer name" value={productForm.name} onChange={(value) => setProductForm({ ...productForm, name: value })} />
                 </div>
                 <Field label="Description" value={productForm.description} onChange={(value) => setProductForm({ ...productForm, description: value })} textarea />
                 <div className="form-row">
@@ -690,14 +1145,21 @@ export function MarketDataLakeShell() {
                   <SelectField
                     label="Access type"
                     value={productForm.accessType}
-                    onChange={(value) => setProductForm({ ...productForm, accessType: value as AdminProductForm["accessType"] })}
-                    options={["ONE_TIME", "SUBSCRIPTION"]}
+                    onChange={(value) => {
+                      const nextAccessType = value as AdminProductForm["accessType"];
+                      setProductForm({
+                        ...productForm,
+                        accessType: nextAccessType,
+                        billingInterval: nextAccessType === "ONE_TIME_PURCHASE" ? "ONE_TIME" : productForm.billingInterval
+                      });
+                    }}
+                    options={["ONE_TIME_PURCHASE", "SUBSCRIPTION"]}
                   />
                   <SelectField
                     label="Billing interval"
                     value={productForm.billingInterval}
                     onChange={(value) => setProductForm({ ...productForm, billingInterval: value as AdminProductForm["billingInterval"] })}
-                    options={["ONE_TIME", "MONTHLY", "YEARLY"]}
+                    options={productForm.accessType === "SUBSCRIPTION" ? ["MONTHLY", "YEARLY"] : ["ONE_TIME"]}
                   />
                 </div>
                 <div className="form-row">
@@ -717,12 +1179,14 @@ export function MarketDataLakeShell() {
                   value={productForm.maxRealtimePayloadKb}
                   onChange={(value) => setProductForm({ ...productForm, maxRealtimePayloadKb: value })}
                 />
-                <button className="button" onClick={handleCreateProduct} disabled={busy}>
-                  Publish product
+                <button className="button" onClick={handleCreateProduct} disabled={busy || !productForm.catalogItemId}>
+                  Publish offer
                 </button>
               </div>
             </div>
+          </div>
 
+          <div className="columns">
             <div className="panel">
               <h3>Publish preview market data</h3>
               <div className="form-grid">
@@ -732,7 +1196,7 @@ export function MarketDataLakeShell() {
                     label="Data type"
                     value={marketDataForm.dataType}
                     onChange={(value) => setMarketDataForm({ ...marketDataForm, dataType: value as MarketDataForm["dataType"] })}
-                    options={["TICK", "NEWS", "FUNDAMENTALS", "CRYPTO", "OTHER"]}
+                    options={["QUOTE", "TICK", "NEWS", "FUNDAMENTALS", "CRYPTO", "OTHER"]}
                   />
                 </div>
                 <div className="form-row">
@@ -750,50 +1214,27 @@ export function MarketDataLakeShell() {
                 </button>
               </div>
             </div>
-          </div>
 
-          <div className="table-card">
-            <div className="header-bar">
-              <div>
-                <h3>Recent payment activity</h3>
-                <div className="helper">Administrative audit view of Stripe checkout creation and payment state.</div>
-              </div>
-            </div>
-            <div className="activity-list">
-              {dashboard?.recentPayments.map((payment) => (
-                <div className="activity-card" key={payment.id}>
-                  <strong>{payment.productCode}</strong>
-                  <div className="meta-list">
-                    <span>{payment.userEmail}</span>
-                    <span>{payment.status}</span>
-                    <span>{formatMoney(payment.amount, payment.currency)}</span>
-                    <span>{formatDate(payment.createdAt)}</span>
-                  </div>
+            <div className="table-card">
+              <div className="header-bar">
+                <div>
+                  <h3>Recent payment activity</h3>
+                  <div className="helper">Administrative audit view of Stripe checkout creation and payment state.</div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="table-card">
-            <div className="header-bar">
-              <div>
-                <h3>Recent usage activity</h3>
-                <div className="helper">Audit stream and batch consumption linked to entitlements.</div>
               </div>
-            </div>
-            <div className="activity-list">
-              {dashboard?.recentUsage.map((usage) => (
-                <div className="activity-card" key={usage.id}>
-                  <strong>{usage.productCode}</strong>
-                  <div className="meta-list">
-                    <span>{usage.userEmail}</span>
-                    <span>{usage.usageType}</span>
-                    <span>Requests: {usage.requestCount}</span>
-                    <span>MB: {usage.megabytesUsed}</span>
-                    <span>Occurred: {formatDate(usage.occurredAt)}</span>
+              <div className="activity-list">
+                {dashboard?.recentPayments.map((payment) => (
+                  <div className="activity-card" key={payment.id}>
+                    <strong>{payment.productCode}</strong>
+                    <div className="meta-list">
+                      <span>{payment.userEmail}</span>
+                      <span>{payment.status}</span>
+                      <span>{formatMoney(payment.amount, payment.currency)}</span>
+                      <span>{formatDate(payment.createdAt)}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -806,8 +1247,11 @@ export function MarketDataLakeShell() {
             <div className="meta-list">
               <span>ID: {lastTransaction.id}</span>
               <span>Status: {lastTransaction.status}</span>
-              <span>Product: {lastTransaction.product.name}</span>
               <span>Amount: {formatMoney(lastTransaction.amount, lastTransaction.currency)}</span>
+              <span>
+                Items:{" "}
+                {lastTransaction.items?.map((item) => `${item.product.code} x${item.quantity}`).join(", ") || lastTransaction.product.name}
+              </span>
               <span>Stripe checkout URL: {lastTransaction.checkoutUrl || "Pending creation"}</span>
               <span>Error: {lastTransaction.errorMessage || "None"}</span>
             </div>
@@ -831,6 +1275,13 @@ function getErrorMessage(error: unknown) {
     return error.message;
   }
   return "Unexpected request failure.";
+}
+
+function toOptionalNumber(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+  return Number(value);
 }
 
 function StatCard({ label, value }: { label: string; value: number }) {
@@ -871,20 +1322,27 @@ function SelectField({
   label,
   value,
   options,
-  onChange
+  onChange,
+  optionValueMode
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (value: string) => void;
+  optionValueMode?: "plain" | "split-id";
 }) {
   return (
     <div className="field">
       <label>{label}</label>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <select
+        value={value}
+        onChange={(event) =>
+          onChange(optionValueMode === "split-id" ? event.target.value.split(":")[0] : event.target.value)
+        }
+      >
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+          <option key={option} value={optionValueMode === "split-id" ? option.split(":")[0] : option}>
+            {optionValueMode === "split-id" ? option.split(":").slice(1).join(":") : option}
           </option>
         ))}
       </select>

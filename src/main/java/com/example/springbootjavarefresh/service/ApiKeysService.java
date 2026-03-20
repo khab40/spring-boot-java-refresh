@@ -168,17 +168,20 @@ public class ApiKeysService {
             int realtimeSubscriptionsUsed,
             long payloadKilobytesUsed) {
         BigDecimal nextBatchUsage = entitlement.getBatchDownloadUsedMb().add(megabytesUsed);
-        if (product.getBatchDownloadLimitMb() != null && nextBatchUsage.compareTo(product.getBatchDownloadLimitMb()) > 0) {
+        BigDecimal allocatedBatchLimit = allocatedBatchLimit(product, entitlement);
+        if (allocatedBatchLimit != null && nextBatchUsage.compareTo(allocatedBatchLimit) > 0) {
             throw new IllegalArgumentException("Batch download limit exceeded for product " + product.getCode());
         }
 
         int nextRealtimeUsage = entitlement.getRealtimeSubscriptionsUsed() + realtimeSubscriptionsUsed;
-        if (product.getRealtimeSubscriptionLimit() != null && nextRealtimeUsage > product.getRealtimeSubscriptionLimit()) {
+        Integer allocatedRealtimeLimit = allocatedRealtimeLimit(product, entitlement);
+        if (allocatedRealtimeLimit != null && nextRealtimeUsage > allocatedRealtimeLimit) {
             throw new IllegalArgumentException("Realtime subscription limit exceeded for product " + product.getCode());
         }
 
         long nextPayloadUsage = entitlement.getPayloadKilobytesUsed() + payloadKilobytesUsed;
-        if (product.getMaxRealtimePayloadKb() != null && nextPayloadUsage > product.getMaxRealtimePayloadKb()) {
+        Long allocatedPayloadLimit = allocatedPayloadLimit(product, entitlement);
+        if (allocatedPayloadLimit != null && nextPayloadUsage > allocatedPayloadLimit) {
             throw new IllegalArgumentException("Realtime payload limit exceeded for product " + product.getCode());
         }
     }
@@ -206,24 +209,53 @@ public class ApiKeysService {
     }
 
     private BigDecimal remainingBatchMb(UserEntitlement entitlement, DataProduct product) {
-        if (product.getBatchDownloadLimitMb() == null) {
+        BigDecimal allocatedLimit = allocatedBatchLimit(product, entitlement);
+        if (allocatedLimit == null) {
             return null;
         }
-        return product.getBatchDownloadLimitMb().subtract(entitlement.getBatchDownloadUsedMb());
+        return allocatedLimit.subtract(entitlement.getBatchDownloadUsedMb());
     }
 
     private Integer remainingRealtimeSubscriptions(UserEntitlement entitlement, DataProduct product) {
-        if (product.getRealtimeSubscriptionLimit() == null) {
+        Integer allocatedLimit = allocatedRealtimeLimit(product, entitlement);
+        if (allocatedLimit == null) {
             return null;
         }
-        return product.getRealtimeSubscriptionLimit() - entitlement.getRealtimeSubscriptionsUsed();
+        return allocatedLimit - entitlement.getRealtimeSubscriptionsUsed();
     }
 
     private Long remainingPayloadKb(UserEntitlement entitlement, DataProduct product) {
+        Long allocatedLimit = allocatedPayloadLimit(product, entitlement);
+        if (allocatedLimit == null) {
+            return null;
+        }
+        return allocatedLimit - entitlement.getPayloadKilobytesUsed();
+    }
+
+    private BigDecimal allocatedBatchLimit(DataProduct product, UserEntitlement entitlement) {
+        if (product.getBatchDownloadLimitMb() == null) {
+            return null;
+        }
+        return product.getBatchDownloadLimitMb().multiply(BigDecimal.valueOf(resolvePurchasedUnits(entitlement)));
+    }
+
+    private Integer allocatedRealtimeLimit(DataProduct product, UserEntitlement entitlement) {
+        if (product.getRealtimeSubscriptionLimit() == null) {
+            return null;
+        }
+        return product.getRealtimeSubscriptionLimit() * resolvePurchasedUnits(entitlement);
+    }
+
+    private Long allocatedPayloadLimit(DataProduct product, UserEntitlement entitlement) {
         if (product.getMaxRealtimePayloadKb() == null) {
             return null;
         }
-        return (long) product.getMaxRealtimePayloadKb() - entitlement.getPayloadKilobytesUsed();
+        return (long) product.getMaxRealtimePayloadKb() * resolvePurchasedUnits(entitlement);
+    }
+
+    private int resolvePurchasedUnits(UserEntitlement entitlement) {
+        Integer purchasedUnits = entitlement.getPurchasedUnits();
+        return purchasedUnits == null || purchasedUnits < 1 ? 1 : purchasedUnits;
     }
 
     private LocalDateTime resolveKeyExpiry(Long userId) {

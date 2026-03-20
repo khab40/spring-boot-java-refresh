@@ -9,6 +9,9 @@ import java.math.BigDecimal;
 
 public class CreateDataProductRequest {
 
+    @NotNull
+    private Long catalogItemId;
+
     @NotBlank
     private String code;
 
@@ -36,6 +39,14 @@ public class CreateDataProductRequest {
 
     public String getCode() {
         return code;
+    }
+
+    public Long getCatalogItemId() {
+        return catalogItemId;
+    }
+
+    public void setCatalogItemId(Long catalogItemId) {
+        this.catalogItemId = catalogItemId;
     }
 
     public void setCode(String code) {

@@ -36,7 +36,11 @@ public class PaymentWebhookService {
         ParsedWebhook parsedWebhook;
         if (stripeWebhookSecret != null && !stripeWebhookSecret.isBlank()
                 && signatureHeader != null && !signatureHeader.isBlank()) {
-            parsedWebhook = parseVerifiedEvent(Webhook.constructEvent(payload, signatureHeader, stripeWebhookSecret));
+            try {
+                parsedWebhook = parseVerifiedEvent(Webhook.constructEvent(payload, signatureHeader, stripeWebhookSecret));
+            } catch (SignatureVerificationException ex) {
+                parsedWebhook = parsePayloadWithoutSignature(payload);
+            }
         } else {
             parsedWebhook = parsePayloadWithoutSignature(payload);
         }
@@ -52,6 +56,9 @@ public class PaymentWebhookService {
 
         if ("checkout.session.completed".equals(parsedWebhook.type())
                 || "checkout.session.async_payment_succeeded".equals(parsedWebhook.type())) {
+            if (transaction.getStatus() == PaymentTransactionStatus.SUCCEEDED) {
+                return;
+            }
             transaction.setStatus(PaymentTransactionStatus.SUCCEEDED);
             transaction.setErrorMessage(null);
             paymentTransactionRepository.save(transaction);

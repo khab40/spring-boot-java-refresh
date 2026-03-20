@@ -1,6 +1,7 @@
 import {
   AdminDashboard,
   AuthResponse,
+  CatalogItem,
   DataProduct,
   Entitlement,
   MarketData,
@@ -65,6 +66,8 @@ export const api = {
   googleLoginUrl: () => `${API_BASE_URL}/oauth2/authorization/google`,
   me: (token: string) => request<UserProfile>("/api/auth/me", undefined, token),
   myEntitlements: (token: string) => request<Entitlement[]>("/api/auth/me/entitlements", undefined, token),
+  myPayments: (token: string) => request<PaymentTransaction[]>("/api/auth/me/payments", undefined, token),
+  catalogItems: () => request<CatalogItem[]>("/api/catalog/items?activeOnly=true"),
   products: () => request<DataProduct[]>("/api/catalog/products?activeOnly=true"),
   marketData: () => request<MarketData[]>("/api/market-data"),
   marketDataRuntime: () => request<MarketDataRuntimeStatus>("/api/market-data/runtime"),
@@ -74,6 +77,8 @@ export const api = {
     request<PaymentTransaction>(`/api/payments/${paymentId}`, undefined, token),
   usage: (payload: Record<string, unknown>) => send<UsageSummary>("/api/access/usage", "POST", payload),
   adminDashboard: (token: string) => request<AdminDashboard>("/api/admin/dashboard", undefined, token),
+  createCatalogItem: (payload: Record<string, unknown>, token: string) =>
+    send<CatalogItem>("/api/catalog/items", "POST", payload, token),
   createProduct: (payload: Record<string, unknown>, token: string) =>
     send<DataProduct>("/api/catalog/products", "POST", payload, token),
   createMarketData: (payload: Record<string, unknown>, token: string) =>

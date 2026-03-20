@@ -9,4 +9,5 @@ import java.util.Optional;
 public interface DataProductRepository extends JpaRepository<DataProduct, Long> {
     List<DataProduct> findByActiveTrue();
     Optional<DataProduct> findByCode(String code);
+    List<DataProduct> findByCatalogItem_IdOrderByPriceAsc(Long catalogItemId);
 }

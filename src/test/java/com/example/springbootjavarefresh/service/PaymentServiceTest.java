@@ -4,6 +4,7 @@ import com.example.springbootjavarefresh.dto.PaymentCheckoutRequest;
 import com.example.springbootjavarefresh.entity.BillingInterval;
 import com.example.springbootjavarefresh.entity.DataProduct;
 import com.example.springbootjavarefresh.entity.PaymentTransaction;
+import com.example.springbootjavarefresh.entity.PaymentTransactionItem;
 import com.example.springbootjavarefresh.entity.PaymentTransactionStatus;
 import com.example.springbootjavarefresh.entity.ProductAccessType;
 import com.example.springbootjavarefresh.entity.User;
@@ -39,6 +40,12 @@ class PaymentServiceTest {
     @Mock
     private PaymentAsyncProcessor paymentAsyncProcessor;
 
+    @Mock
+    private StripePaymentGateway stripePaymentGateway;
+
+    @Mock
+    private UserEntitlementService userEntitlementService;
+
     @InjectMocks
     private PaymentService paymentService;
 
@@ -51,7 +58,10 @@ class PaymentServiceTest {
     void shouldInitiateCheckoutAndTriggerAsyncProcessor() {
         PaymentCheckoutRequest request = new PaymentCheckoutRequest();
         request.setUserId(4L);
-        request.setProductId(9L);
+        PaymentCheckoutRequest.CheckoutLineItem item = new PaymentCheckoutRequest.CheckoutLineItem();
+        item.setProductId(9L);
+        item.setQuantity(2);
+        request.setItems(java.util.List.of(item));
         request.setSuccessUrl("https://example.com/success");
         request.setCancelUrl("https://example.com/cancel");
 
@@ -71,7 +81,7 @@ class PaymentServiceTest {
         saved.setId(77L);
         saved.setUser(user);
         saved.setProduct(product);
-        saved.setAmount(product.getPrice());
+        saved.setAmount(new BigDecimal("118.00"));
         saved.setCurrency(product.getCurrency());
         saved.setStatus(PaymentTransactionStatus.PENDING);
 
@@ -86,9 +96,13 @@ class PaymentServiceTest {
         PaymentTransaction persisted = captor.getValue();
         assertEquals(user, persisted.getUser());
         assertEquals(product, persisted.getProduct());
-        assertEquals(new BigDecimal("59.00"), persisted.getAmount());
+        assertEquals(new BigDecimal("118.00"), persisted.getAmount());
         assertEquals("usd", persisted.getCurrency());
         assertEquals(PaymentTransactionStatus.PENDING, persisted.getStatus());
+        assertEquals(1, persisted.getItems().size());
+        PaymentTransactionItem persistedItem = persisted.getItems().get(0);
+        assertEquals(2, persistedItem.getQuantity());
+        assertEquals(new BigDecimal("118.00"), persistedItem.getLineAmount());
         verify(paymentAsyncProcessor).createCheckoutSessionAsync(77L, "https://example.com/success", "https://example.com/cancel");
         assertEquals(77L, result.getId());
     }
@@ -105,5 +119,87 @@ class PaymentServiceTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> paymentService.initiateCheckout(request));
         assertEquals("User not found: 999", ex.getMessage());
+    }
+
+    @Test
+    void shouldRejectMixedAccessTypesInSingleCart() {
+        PaymentCheckoutRequest request = new PaymentCheckoutRequest();
+        request.setUserId(4L);
+        request.setSuccessUrl("https://example.com/success");
+        request.setCancelUrl("https://example.com/cancel");
+
+        PaymentCheckoutRequest.CheckoutLineItem subscriptionItem = new PaymentCheckoutRequest.CheckoutLineItem();
+        subscriptionItem.setProductId(9L);
+        subscriptionItem.setQuantity(1);
+        PaymentCheckoutRequest.CheckoutLineItem oneTimeItem = new PaymentCheckoutRequest.CheckoutLineItem();
+        oneTimeItem.setProductId(10L);
+        oneTimeItem.setQuantity(1);
+        request.setItems(java.util.List.of(subscriptionItem, oneTimeItem));
+
+        User user = new User();
+        user.setId(4L);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(user));
+
+        DataProduct subscription = new DataProduct();
+        subscription.setId(9L);
+        subscription.setCode("STREAM");
+        subscription.setPrice(new BigDecimal("59.00"));
+        subscription.setCurrency("usd");
+        subscription.setAccessType(ProductAccessType.SUBSCRIPTION);
+        subscription.setBillingInterval(BillingInterval.MONTHLY);
+
+        DataProduct oneTime = new DataProduct();
+        oneTime.setId(10L);
+        oneTime.setCode("SNAPSHOT");
+        oneTime.setPrice(new BigDecimal("99.00"));
+        oneTime.setCurrency("usd");
+        oneTime.setAccessType(ProductAccessType.ONE_TIME_PURCHASE);
+        oneTime.setBillingInterval(BillingInterval.ONE_TIME);
+
+        when(dataProductRepository.findById(9L)).thenReturn(Optional.of(subscription));
+        when(dataProductRepository.findById(10L)).thenReturn(Optional.of(oneTime));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> paymentService.initiateCheckout(request));
+        assertEquals("Stripe checkout does not support mixing subscriptions and one-time purchases", ex.getMessage());
+    }
+
+    @Test
+    void shouldMarkCheckoutCreatedTransactionAsSucceededWhenStripeReportsPaid() throws Exception {
+        User user = new User();
+        user.setId(4L);
+
+        DataProduct product = new DataProduct();
+        product.setId(9L);
+        product.setCode("DEPTH");
+        product.setName("Depth Feed");
+        product.setPrice(new BigDecimal("59.00"));
+        product.setCurrency("usd");
+        product.setAccessType(ProductAccessType.ONE_TIME_PURCHASE);
+        product.setBillingInterval(BillingInterval.ONE_TIME);
+
+        PaymentTransaction transaction = new PaymentTransaction();
+        transaction.setId(77L);
+        transaction.setUser(user);
+        transaction.setProduct(product);
+        transaction.setAmount(new BigDecimal("59.00"));
+        transaction.setCurrency("usd");
+        transaction.setStatus(PaymentTransactionStatus.CHECKOUT_CREATED);
+        transaction.setStripeCheckoutSessionId("cs_test_123");
+
+        when(stripePaymentGateway.getCheckoutSessionStatus("cs_test_123"))
+                .thenReturn(new StripePaymentGateway.CheckoutSessionStatus(
+                        "cs_test_123",
+                        "complete",
+                        "paid",
+                        "https://checkout.stripe.test/session"));
+        when(paymentTransactionRepository.save(org.mockito.ArgumentMatchers.any(PaymentTransaction.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentTransaction refreshed = paymentService.refreshTransactionStatusFromStripe(transaction);
+
+        assertEquals(PaymentTransactionStatus.SUCCEEDED, refreshed.getStatus());
+        assertEquals("https://checkout.stripe.test/session", refreshed.getCheckoutUrl());
+        verify(userEntitlementService).grantEntitlement(transaction);
+        verify(paymentTransactionRepository).save(transaction);
     }
 }

@@ -4,6 +4,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+MDL_RUNTIME_DIR="${TMPDIR:-/tmp}/market-data-lake"
+STRIPE_LISTENER_PID_FILE="${MDL_RUNTIME_DIR}/stripe-listen.pid"
+STRIPE_LISTENER_LOG_FILE="${MDL_RUNTIME_DIR}/stripe-listen.log"
 
 load_env_file() {
   local env_file
@@ -60,6 +63,8 @@ load_env_file
 prepare_docker_env
 prepare_docker_host
 
+mkdir -p "${MDL_RUNTIME_DIR}"
+
 if docker compose version >/dev/null 2>&1; then
   DOCKER_COMPOSE_CMD=(docker compose)
 elif command -v docker-compose >/dev/null 2>&1; then
@@ -74,4 +79,55 @@ run_compose() {
     cd "${REPO_ROOT}"
     "${DOCKER_COMPOSE_CMD[@]}" "$@"
   )
+}
+
+stripe_listener_running() {
+  if [[ ! -f "${STRIPE_LISTENER_PID_FILE}" ]]; then
+    return 1
+  fi
+
+  local pid
+  pid="$(cat "${STRIPE_LISTENER_PID_FILE}")"
+  [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null
+}
+
+start_stripe_listener() {
+  local auto_listen
+  auto_listen="${MDL_AUTO_STRIPE_LISTEN:-true}"
+
+  if [[ "${auto_listen}" != "true" ]]; then
+    return 0
+  fi
+
+  if ! command -v stripe >/dev/null 2>&1; then
+    echo "Stripe CLI not found. Skipping automatic webhook listener startup." >&2
+    return 0
+  fi
+
+  if stripe_listener_running; then
+    echo "Stripe webhook listener already running (pid $(cat "${STRIPE_LISTENER_PID_FILE}"))."
+    return 0
+  fi
+
+  (
+    cd "${REPO_ROOT}"
+    nohup "${SCRIPT_DIR}/stripe-listen.sh" > "${STRIPE_LISTENER_LOG_FILE}" 2>&1 &
+    echo $! > "${STRIPE_LISTENER_PID_FILE}"
+  )
+
+  echo "Stripe webhook listener started (pid $(cat "${STRIPE_LISTENER_PID_FILE}"))."
+  echo "Stripe listener log: ${STRIPE_LISTENER_LOG_FILE}"
+}
+
+stop_stripe_listener() {
+  if ! stripe_listener_running; then
+    rm -f "${STRIPE_LISTENER_PID_FILE}"
+    return 0
+  fi
+
+  local pid
+  pid="$(cat "${STRIPE_LISTENER_PID_FILE}")"
+  kill "${pid}" 2>/dev/null || true
+  rm -f "${STRIPE_LISTENER_PID_FILE}"
+  echo "Stripe webhook listener stopped."
 }

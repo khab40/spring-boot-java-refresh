@@ -6,8 +6,10 @@ import { describeProductMode, formatMoney } from "../lib/format";
 type ProductCardProps = {
   product: DataProduct;
   quantity: number;
+  cartQuantity?: number;
   onQuantityChange: (productId: number, quantity: number) => void;
-  onCheckout: (product: DataProduct) => void;
+  onAddToCart: (product: DataProduct) => void;
+  onRemoveFromCart?: (productId: number) => void;
   onUsageAction?: (product: DataProduct) => void;
   disabled?: boolean;
 };
@@ -15,20 +17,25 @@ type ProductCardProps = {
 export function ProductCard({
   product,
   quantity,
+  cartQuantity = 0,
   onQuantityChange,
-  onCheckout,
+  onAddToCart,
+  onRemoveFromCart,
   onUsageAction,
   disabled
 }: ProductCardProps) {
   const total = Number(product.price) * quantity;
   const actionLabel =
     product.accessType === "SUBSCRIPTION" ? "Simulate stream delivery" : "Simulate dataset delivery";
+  const isInCart = cartQuantity > 0;
+  const addButtonLabel = isInCart ? "Update cart" : "Add to cart";
 
   return (
     <article className="product-card">
       <div className="pill-row">
         <span className="pill">{product.accessType}</span>
         <span className="pill">{product.billingInterval}</span>
+        {isInCart ? <span className="pill cart-pill">In cart: {cartQuantity}</span> : null}
       </div>
       <strong>{product.name}</strong>
       <div className="helper">{product.code}</div>
@@ -57,9 +64,14 @@ export function ProductCard({
         </div>
       </div>
       <div className="actions">
-        <button className="button" onClick={() => onCheckout(product)} disabled={disabled}>
-          Checkout with Stripe
+        <button className="button" onClick={() => onAddToCart(product)} disabled={disabled}>
+          {addButtonLabel}
         </button>
+        {onRemoveFromCart && isInCart ? (
+          <button className="ghost-button" onClick={() => onRemoveFromCart(product.id)} disabled={disabled}>
+            Remove from cart
+          </button>
+        ) : null}
         {onUsageAction ? (
           <button className="ghost-button" onClick={() => onUsageAction(product)} disabled={disabled}>
             {actionLabel}

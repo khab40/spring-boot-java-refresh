@@ -1,7 +1,11 @@
 package com.example.springbootjavarefresh.controller;
 
 import com.example.springbootjavarefresh.entity.BillingInterval;
+import com.example.springbootjavarefresh.dto.CatalogItemResponse;
+import com.example.springbootjavarefresh.entity.DataCatalogItem;
+import com.example.springbootjavarefresh.entity.DataCatalogStorage;
 import com.example.springbootjavarefresh.entity.DataProduct;
+import com.example.springbootjavarefresh.entity.MarketDataType;
 import com.example.springbootjavarefresh.entity.ProductAccessType;
 import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
 import com.example.springbootjavarefresh.service.DataCatalogService;
@@ -41,6 +45,33 @@ class DataCatalogControllerTest {
 
     @MockBean
     private UserDetailsService userDetailsService;
+
+    @Test
+    void shouldReturnCatalogItems() throws Exception {
+        CatalogItemResponse item = new CatalogItemResponse(
+                5L,
+                "US-EQ-QUOTE",
+                "US Equities Quotes",
+                "Best bid and ask snapshots",
+                "Detailed catalog item metadata",
+                MarketDataType.QUOTE.name(),
+                DataCatalogStorage.DELTA_LAKE.name(),
+                "/api/market-data/query",
+                "lake.us_equities_quotes",
+                "AAPL,NVDA",
+                null,
+                null,
+                true,
+                null,
+                List.of()
+        );
+        when(dataCatalogService.getAllCatalogItems()).thenReturn(List.of(item));
+
+        mockMvc.perform(get("/api/catalog/items"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("US-EQ-QUOTE"))
+                .andExpect(jsonPath("$[0].storageSystem").value("DELTA_LAKE"));
+    }
 
     @Test
     void shouldReturnCatalogProducts() throws Exception {
@@ -98,6 +129,7 @@ class DataCatalogControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "catalogItemId": 5,
                                   "code": "OPTIONS-PRO",
                                   "name": "Options Pro",
                                   "description": "Full options chain package",
@@ -110,5 +142,30 @@ class DataCatalogControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(15L))
                 .andExpect(jsonPath("$.code").value("OPTIONS-PRO"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void shouldCreateCatalogItem() throws Exception {
+        DataCatalogItem item = new DataCatalogItem();
+        item.setId(5L);
+        item.setCode("US-EQ-QUOTE");
+        when(dataCatalogService.createCatalogItem(any())).thenReturn(item);
+
+        mockMvc.perform(post("/api/catalog/items")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "US-EQ-QUOTE",
+                                  "name": "US Equities Quotes",
+                                  "summary": "Best bid and ask snapshots",
+                                  "description": "Detailed catalog item metadata",
+                                  "marketDataType": "QUOTE",
+                                  "storageSystem": "DELTA_LAKE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(5L))
+                .andExpect(jsonPath("$.code").value("US-EQ-QUOTE"));
     }
 }

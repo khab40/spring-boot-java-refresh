@@ -138,6 +138,7 @@ class ApiKeysServiceTest {
         entitlement.setUser(user);
         entitlement.setProduct(product);
         entitlement.setStatus(EntitlementStatus.ACTIVE);
+        entitlement.setPurchasedUnits(2);
         entitlement.setBatchDownloadUsedMb(new BigDecimal("100.00"));
         entitlement.setRealtimeSubscriptionsUsed(1);
         entitlement.setPayloadKilobytesUsed(300L);
@@ -163,7 +164,7 @@ class ApiKeysServiceTest {
 
         assertEquals(new BigDecimal("150.00"), entitlement.getBatchDownloadUsedMb());
         assertEquals(320L, entitlement.getPayloadKilobytesUsed());
-        assertEquals(new BigDecimal("350.00"), summary.batchDownloadRemainingMb());
+        assertEquals(new BigDecimal("850.00"), summary.batchDownloadRemainingMb());
         verify(apiKeyUsageRecordRepository).save(any());
         verify(userEntitlementRepository).save(entitlement);
     }

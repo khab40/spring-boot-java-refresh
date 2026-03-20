@@ -3,10 +3,13 @@ package com.example.springbootjavarefresh.controller;
 import com.example.springbootjavarefresh.dto.AuthResponse;
 import com.example.springbootjavarefresh.dto.EmailVerificationResponse;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
+import com.example.springbootjavarefresh.entity.PaymentTransaction;
+import com.example.springbootjavarefresh.entity.PaymentTransactionStatus;
 import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.entity.UserEntitlement;
 import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
 import com.example.springbootjavarefresh.service.AuthService;
+import com.example.springbootjavarefresh.service.PaymentService;
 import com.example.springbootjavarefresh.service.UserEntitlementService;
 import com.example.springbootjavarefresh.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -43,6 +46,9 @@ class AuthControllerTest {
 
     @MockBean
     private AuthService authService;
+
+    @MockBean
+    private PaymentService paymentService;
 
     @MockBean
     private UserEntitlementService userEntitlementService;
@@ -170,6 +176,32 @@ class AuthControllerTest {
         assertEquals(200, response.getStatusCode().value());
         assertEquals(1, response.getBody().size());
         assertEquals(99L, response.getBody().get(0).getId());
+    }
+
+    @Test
+    void shouldReturnCurrentUserPayments() {
+        User userPrincipal = new User();
+        userPrincipal.setId(1L);
+        userPrincipal.setEmail("auth@example.com");
+        userPrincipal.setFirstName("Auth");
+        userPrincipal.setLastName("User");
+        userPrincipal.setPasswordHash("ignored");
+
+        PaymentTransaction transaction = new PaymentTransaction();
+        transaction.setId(42L);
+        transaction.setStatus(PaymentTransactionStatus.CHECKOUT_CREATED);
+
+        when(paymentService.getTransactionsByUserId(1L)).thenReturn(List.of(transaction));
+
+        ResponseEntity<List<PaymentTransaction>> response = authController.myPayments(new UsernamePasswordAuthenticationToken(
+                userPrincipal,
+                null,
+                userPrincipal.getAuthorities()
+        ));
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(1, response.getBody().size());
+        assertEquals(42L, response.getBody().get(0).getId());
     }
 
     @Test

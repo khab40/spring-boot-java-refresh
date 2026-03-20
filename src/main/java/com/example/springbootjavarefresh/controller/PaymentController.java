@@ -34,8 +34,11 @@ public class PaymentController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get payment transaction status")
-    public ResponseEntity<PaymentTransaction> getPaymentTransaction(@PathVariable Long id) {
+    public ResponseEntity<PaymentTransaction> getPaymentTransaction(
+            @PathVariable Long id,
+            @RequestParam(name = "refresh", defaultValue = "true") boolean refresh) {
         return paymentService.getTransactionById(id)
+                .map(transaction -> refresh ? paymentService.refreshTransactionStatusFromStripe(transaction) : transaction)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
