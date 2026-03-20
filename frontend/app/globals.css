@@ -36,6 +36,7 @@ body {
 
 a {
   color: inherit;
+  text-decoration: none;
 }
 
 button,
@@ -193,6 +194,20 @@ textarea {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.72);
   padding: 11px 13px;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.catalog-list-item:hover,
+.catalog-list-item:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(11, 110, 79, 0.34);
+  background: rgba(231, 245, 236, 0.86);
+  box-shadow: 0 10px 24px rgba(56, 43, 24, 0.1);
 }
 
 .catalog-list-item-active {
@@ -277,19 +292,33 @@ textarea {
 .button,
 .secondary-button,
 .ghost-button,
-.danger-button {
+.danger-button,
+a.button {
   border: 0;
   border-radius: 999px;
   padding: 9px 14px;
   cursor: pointer;
-  transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
+  transition:
+    transform 160ms ease,
+    opacity 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .button:hover,
 .secondary-button:hover,
 .ghost-button:hover,
-.danger-button:hover {
+.danger-button:hover,
+a.button:hover,
+.button:focus-visible,
+.secondary-button:focus-visible,
+.ghost-button:focus-visible,
+.danger-button:focus-visible,
+a.button:focus-visible {
   transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(56, 43, 24, 0.14);
 }
 
 .button {
@@ -298,9 +327,21 @@ textarea {
   box-shadow: 0 12px 24px rgba(11, 110, 79, 0.22);
 }
 
+.button:hover,
+a.button:hover,
+.button:focus-visible,
+a.button:focus-visible {
+  background: linear-gradient(135deg, #0d7b58, #10956d);
+}
+
 .secondary-button {
   background: #efe4b6;
   color: #4d3914;
+}
+
+.secondary-button:hover,
+.secondary-button:focus-visible {
+  background: #e8d998;
 }
 
 .ghost-button {
@@ -309,9 +350,21 @@ textarea {
   border: 1px solid var(--line);
 }
 
+.ghost-button:hover,
+.ghost-button:focus-visible {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(11, 110, 79, 0.26);
+}
+
 .danger-button {
   background: rgba(169, 48, 48, 0.12);
   color: var(--danger);
+}
+
+.danger-button:hover,
+.danger-button:focus-visible {
+  background: rgba(169, 48, 48, 0.2);
+  border-color: rgba(169, 48, 48, 0.24);
 }
 
 .product-price {
@@ -479,6 +532,19 @@ textarea {
   background: rgba(255, 255, 255, 0.82);
   padding: 12px 14px;
   cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.user-chip:hover,
+.user-chip:focus-visible {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(11, 110, 79, 0.26);
+  box-shadow: 0 12px 24px rgba(56, 43, 24, 0.12);
 }
 
 .user-chip-label {
