@@ -771,53 +771,22 @@ export function MarketDataLakeShell() {
 
   return (
     <main className="page-shell">
-      <section className="hero compact-hero">
-        <div className="hero-card hero-card-primary">
-          <div className="eyebrow">Market Data Lake</div>
-          <div className="hero-topbar">
-            <div>
-              <h1>Modern market data lake for one-time delivery, live subscriptions, and AI-ready workflows.</h1>
-              <p>
-                Browse the catalog first, inspect data-lake coverage and query paths, then choose the commercial offer
-                that fits a one-time download, recurring refresh, or streaming subscription flow.
-              </p>
-            </div>
-            <button className="user-chip" onClick={() => setIsUserDrawerOpen(true)}>
-              <span className="user-chip-label">User</span>
-              <strong>{profile ? `${profile.firstName} ${profile.lastName}` : "Sign in"}</strong>
-            </button>
-          </div>
-          <div className="hero-badges">
-            <span className="badge">Catalog metadata</span>
-            <span className="badge">Stripe checkout</span>
-            <span className="badge">One-time and streaming offers</span>
-            <span className="badge">AI-ready lake products</span>
-          </div>
+      <section className="terminal-header">
+        <div className="terminal-header-main">
+          <div className="terminal-kicker">Market Data Lake / Operator Console</div>
+          <h1>Data Catalog</h1>
+          <p>
+            Query available datasets, inspect coverage and delivery references, then move directly into commercial
+            packaging and checkout.
+          </p>
         </div>
-        <div className="hero-card hero-card-compact">
-          <div className="eyebrow">Overview</div>
-          <div className="mini-stats-grid">
-            <div className="mini-stat">
-              <span>Catalog items</span>
-              <strong>{catalogItems.length}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Cart lines</span>
-              <strong>{cartEntries.length}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Active access</span>
-              <strong>{accessSummaries.length}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Payments</span>
-              <strong>{payments.length}</strong>
-            </div>
-          </div>
-          <div className="helper">
-            {profile
-              ? `${profile.email} is signed in with ${profile.authProvider}.`
-              : "Open the user drawer to sign up, sign in, or continue with Google."}
+        <div className="terminal-header-side">
+          <button className="user-chip" onClick={() => setIsUserDrawerOpen(true)}>
+            <span className="user-chip-label">User</span>
+            <strong>{profile ? `${profile.firstName} ${profile.lastName}` : "Sign in"}</strong>
+          </button>
+          <div className="terminal-user-meta">
+            {profile ? `${profile.email} / ${profile.authProvider}` : "Authentication required for access and payments"}
           </div>
           {session?.apiKey ? (
             <div className="token-block compact-token">
@@ -825,6 +794,25 @@ export function MarketDataLakeShell() {
               <code>{session.apiKey}</code>
             </div>
           ) : null}
+        </div>
+      </section>
+
+      <section className="console-stats">
+        <div className="console-stat">
+          <span>datasets</span>
+          <strong>{catalogItems.length}</strong>
+        </div>
+        <div className="console-stat">
+          <span>cart</span>
+          <strong>{cartEntries.length}</strong>
+        </div>
+        <div className="console-stat">
+          <span>access</span>
+          <strong>{accessSummaries.length}</strong>
+        </div>
+        <div className="console-stat">
+          <span>payments</span>
+          <strong>{payments.length}</strong>
         </div>
       </section>
 
@@ -1071,28 +1059,38 @@ export function MarketDataLakeShell() {
               </div>
             </div>
           </div>
-          <div className="card compact-card">
-            <div className="form-row">
+          <div className="card compact-card catalog-search-card">
+            <div className="catalog-search-header">
+              <div>
+                <strong>Dataset search</strong>
+                <div className="helper">Filter inventory by symbol coverage, dataset type, storage, and offer packaging.</div>
+              </div>
+              <div className="catalog-search-summary">
+                <span>{catalogItems.length} match{catalogItems.length === 1 ? "" : "es"}</span>
+              </div>
+            </div>
+            <div className="catalog-search-grid">
               <Field
                 label="Symbol or *"
                 value={catalogFilters.symbol}
                 onChange={(value) => setCatalogFilters((current) => ({ ...current, symbol: value }))}
                 placeholder="AAPL or *"
+                className="field-span-2"
               />
               <Field
-                label="Available from"
+                label="Start datetime"
                 value={catalogFilters.availableFrom}
                 onChange={(value) => setCatalogFilters((current) => ({ ...current, availableFrom: value }))}
                 type="datetime-local"
               />
               <Field
-                label="Available to"
+                label="End datetime"
                 value={catalogFilters.availableTo}
                 onChange={(value) => setCatalogFilters((current) => ({ ...current, availableTo: value }))}
                 type="datetime-local"
               />
             </div>
-            <div className="form-row">
+            <div className="catalog-search-grid">
               <SelectField
                 label="Data type"
                 value={catalogFilters.marketDataType}
@@ -1122,7 +1120,7 @@ export function MarketDataLakeShell() {
                 optionValueMode="split-id"
               />
             </div>
-            <div className="actions">
+            <div className="actions catalog-search-actions">
               <button className="button" onClick={handleCatalogSearch} disabled={busy}>
                 Search catalog
               </button>
@@ -1131,16 +1129,28 @@ export function MarketDataLakeShell() {
               </button>
             </div>
           </div>
-          <div className="catalog-list">
+          <div className="catalog-table-head">
+            <span>Dataset</span>
+            <span>Type</span>
+            <span>Offers</span>
+          </div>
+          <div className="catalog-list catalog-data-list">
             {catalogItems.map((item) => (
               <button
                 key={item.id}
                 className={`catalog-list-item ${selectedCatalogItem?.id === item.id ? "catalog-list-item-active" : ""}`}
                 onClick={() => setSelectedCatalogItemId(item.id)}
               >
-                <span className="catalog-list-title">{item.name}</span>
-                <span className="helper">{item.marketDataType} · {describeStorage(item.storageSystem)}</span>
-                <span className="helper">{item.offers.length} linked offer{item.offers.length === 1 ? "" : "s"}</span>
+                <span className="catalog-list-main">
+                  <span className="catalog-list-title">{item.name}</span>
+                  <span className="catalog-list-code">{item.code}</span>
+                </span>
+                <span className="catalog-list-secondary">
+                  {item.marketDataType} · {describeStorage(item.storageSystem)}
+                </span>
+                <span className="catalog-list-tertiary">
+                  {item.offers.length} linked offer{item.offers.length === 1 ? "" : "s"}
+                </span>
               </button>
             ))}
           </div>
@@ -1155,13 +1165,21 @@ export function MarketDataLakeShell() {
           </div>
           {selectedCatalogItem ? (
             <div className="grid">
-              <div className="card">
-                <div className="pill-row">
-                  <span className="pill">{selectedCatalogItem.marketDataType}</span>
-                  <span className="pill">{describeStorage(selectedCatalogItem.storageSystem)}</span>
-                  <span className="pill">{selectedCatalogItem.code}</span>
+              <div className="card catalog-detail-card">
+                <div className="catalog-detail-header">
+                  <div>
+                    <div className="pill-row">
+                      <span className="pill">{selectedCatalogItem.marketDataType}</span>
+                      <span className="pill">{describeStorage(selectedCatalogItem.storageSystem)}</span>
+                      <span className="pill">{selectedCatalogItem.code}</span>
+                    </div>
+                    <strong>{selectedCatalogItem.name}</strong>
+                  </div>
+                  <div className="catalog-detail-metrics">
+                    <span>{selectedCatalogItem.offers.length} offers</span>
+                    <span>{selectedCatalogItem.sampleSymbols ? "Sample symbols ready" : "No sample symbols"}</span>
+                  </div>
                 </div>
-                <strong>{selectedCatalogItem.name}</strong>
                 <div className="meta-list">
                   <span>{selectedCatalogItem.summary || "No summary provided."}</span>
                   <span>{selectedCatalogItem.description || "No detailed description provided."}</span>
@@ -1591,7 +1609,8 @@ function Field({
   onChange,
   textarea,
   type = "text",
-  placeholder
+  placeholder,
+  className
 }: {
   label: string;
   value: string;
@@ -1599,9 +1618,10 @@ function Field({
   textarea?: boolean;
   type?: string;
   placeholder?: string;
+  className?: string;
 }) {
   return (
-    <div className="field">
+    <div className={`field${className ? ` ${className}` : ""}`}>
       <label>{label}</label>
       {textarea ? (
         <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />

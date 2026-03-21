@@ -1,18 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f2ede3;
-  --bg-strong: #e2d3bb;
-  --surface: rgba(255, 250, 241, 0.78);
-  --surface-strong: rgba(255, 245, 227, 0.92);
-  --line: rgba(56, 43, 24, 0.12);
-  --text: #1f1a14;
-  --muted: #6f614c;
-  --accent: #0b6e4f;
-  --accent-soft: #c8ecd9;
-  --warn: #c26b1f;
-  --danger: #a93030;
-  --shadow: 0 18px 50px rgba(81, 58, 21, 0.12);
+  --bg: #07111d;
+  --bg-strong: #0b1725;
+  --surface: rgba(12, 23, 37, 0.92);
+  --surface-strong: rgba(15, 28, 45, 0.98);
+  --surface-soft: rgba(9, 19, 31, 0.96);
+  --line: rgba(120, 158, 203, 0.16);
+  --line-strong: rgba(120, 158, 203, 0.3);
+  --text: #dce9f8;
+  --muted: #86a0bf;
+  --accent: #33c3ff;
+  --accent-strong: #7bd8ff;
+  --warn: #d6a349;
+  --danger: #f06b7e;
+  --shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
 }
 
 * {
@@ -27,9 +29,11 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(249, 211, 120, 0.32), transparent 28%),
-    radial-gradient(circle at top right, rgba(91, 164, 136, 0.25), transparent 24%),
-    linear-gradient(180deg, #f7f1e6 0%, #efe4d1 100%);
+    linear-gradient(rgba(44, 74, 110, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(44, 74, 110, 0.12) 1px, transparent 1px),
+    radial-gradient(circle at top, rgba(51, 195, 255, 0.08), transparent 28%),
+    linear-gradient(180deg, #07111d 0%, #091522 100%);
+  background-size: 48px 48px, 48px 48px, auto, auto;
   color: var(--text);
   font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
 }
@@ -47,82 +51,82 @@ textarea {
 }
 
 .page-shell {
-  width: min(1380px, calc(100vw - 32px));
+  width: min(1480px, calc(100vw - 28px));
   margin: 0 auto;
-  padding: 18px 0 56px;
+  padding: 18px 0 40px;
 }
 
-.hero {
-  display: grid;
-  grid-template-columns: 1.25fr 0.95fr;
+.terminal-header {
+  display: flex;
   gap: 14px;
-  align-items: stretch;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
-.hero-card,
+.terminal-header-main,
+.terminal-header-side,
 .panel,
 .stat-card,
 .table-card {
   border: 1px solid var(--line);
   background: var(--surface);
-  backdrop-filter: blur(18px);
   box-shadow: var(--shadow);
 }
 
-.hero-card {
-  border-radius: 28px;
-  padding: 20px;
-  position: relative;
-  overflow: hidden;
+.terminal-header-main,
+.terminal-header-side {
+  border-radius: 14px;
 }
 
-.hero-card::after {
-  content: "";
-  position: absolute;
-  inset: auto -50px -70px auto;
-  width: 240px;
-  height: 240px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(11, 110, 79, 0.26), transparent 70%);
+.terminal-header-main {
+  flex: 1.3;
+  padding: 18px 20px;
 }
 
+.terminal-header-side {
+  flex: 0.9;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.terminal-kicker,
+.eyebrow,
+.topbar-subtitle,
+.user-chip-label,
+.field label,
+.catalog-table-head,
+.pill,
+.product-price-caption,
+.terminal-user-meta,
+.console-stat span {
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+}
+
+.terminal-kicker,
 .eyebrow {
+  color: var(--accent-strong);
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 0.75rem;
-  color: var(--muted);
-  margin-bottom: 10px;
 }
 
-.hero h1 {
+.terminal-header h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(1.5rem, 2.3vw, 2.2rem);
+  letter-spacing: -0.04em;
+}
+
+.terminal-header p {
   margin: 0;
-  font-family: "IBM Plex Serif", Georgia, serif;
-  font-size: clamp(1.8rem, 3vw, 2.8rem);
-  line-height: 1.02;
-  letter-spacing: -0.05em;
-}
-
-.hero p {
-  max-width: 62ch;
+  max-width: 66ch;
   color: var(--muted);
-  line-height: 1.45;
-  margin-bottom: 0;
+  line-height: 1.5;
 }
 
-.hero-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.badge {
-  border-radius: 999px;
-  padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid var(--line);
-  color: var(--text);
+.terminal-user-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .grid {
@@ -130,8 +134,38 @@ textarea {
   gap: 14px;
 }
 
+.console-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.console-stat {
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+}
+
+.console-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.console-stat strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.72rem;
+  letter-spacing: -0.04em;
+}
+
 .catalog-layout {
-  grid-template-columns: 0.72fr 1.28fr;
+  grid-template-columns: minmax(460px, 0.96fr) minmax(0, 1.04fr);
   margin-bottom: 14px;
 }
 
@@ -142,23 +176,54 @@ textarea {
   margin-bottom: 14px;
 }
 
+.dense-two-column {
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 14px;
+}
+
+.split-panel {
+  display: grid;
+  grid-template-columns: 0.74fr 1.26fr;
+  gap: 12px;
+}
+
 .panel {
-  border-radius: 24px;
+  border-radius: 14px;
   padding: 16px;
 }
 
 .panel h2,
 .panel h3 {
   margin-top: 0;
-  margin-bottom: 10px;
-  font-family: "IBM Plex Serif", Georgia, serif;
-  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+}
+
+.panel-intro,
+.product-meta,
+.meta-list,
+.helper {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .panel-intro {
-  color: var(--muted);
-  margin-bottom: 12px;
-  font-size: 0.94rem;
+  margin-bottom: 10px;
+}
+
+.section-header,
+.header-bar,
+.compact-card-header,
+.catalog-detail-header,
+.catalog-search-header,
+.hero-topbar,
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: end;
 }
 
 .auth-grid,
@@ -177,7 +242,11 @@ textarea {
 .catalog-grid,
 .audit-grid,
 .market-grid {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .catalog-list {
@@ -185,42 +254,80 @@ textarea {
   gap: 8px;
 }
 
+.catalog-table-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(110px, 0.9fr) minmax(90px, 0.7fr);
+  gap: 12px;
+  padding: 0 14px 8px;
+  color: var(--muted);
+  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.catalog-data-list {
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(8, 18, 30, 0.78);
+}
+
 .catalog-list-item {
   display: grid;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(110px, 0.9fr) minmax(90px, 0.7fr);
+  gap: 12px;
+  align-items: center;
   width: 100%;
   text-align: left;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.72);
-  padding: 11px 13px;
+  border: 0;
+  border-bottom: 1px solid rgba(120, 158, 203, 0.08);
+  background: rgba(8, 18, 30, 0.92);
+  color: inherit;
+  padding: 12px 14px;
   cursor: pointer;
-  transition:
-    transform 160ms ease,
-    box-shadow 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
 }
 
 .catalog-list-item:hover,
 .catalog-list-item:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(11, 110, 79, 0.34);
-  background: rgba(231, 245, 236, 0.86);
-  box-shadow: 0 10px 24px rgba(56, 43, 24, 0.1);
+  background: rgba(13, 30, 48, 0.98);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .catalog-list-item-active {
-  border-color: rgba(11, 110, 79, 0.4);
-  background: rgba(200, 236, 217, 0.55);
+  background: rgba(14, 35, 56, 0.98);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.catalog-list-item:last-child {
+  border-bottom: 0;
 }
 
 .catalog-list-title {
+  display: block;
   font-weight: 600;
+  color: var(--text);
 }
 
-.stats-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+.catalog-list-main,
+.catalog-list-secondary,
+.catalog-list-tertiary,
+.catalog-list-code {
+  display: block;
+}
+
+.catalog-list-code {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+}
+
+.catalog-list-secondary,
+.catalog-list-tertiary {
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .card,
@@ -228,22 +335,46 @@ textarea {
 .product-card,
 .market-card,
 .activity-card {
-  border-radius: 18px;
+  border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--surface-strong);
-  padding: 14px;
+  padding: 12px;
+}
+
+.compact-card {
+  padding: 12px 14px;
+}
+
+.catalog-detail-card {
+  padding: 16px;
+}
+
+.catalog-detail-metrics {
+  display: grid;
+  gap: 8px;
+  min-width: 170px;
+}
+
+.catalog-detail-metrics span {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(7, 17, 29, 0.84);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
 }
 
 .stat-card {
-  border-radius: 20px;
-  padding: 14px;
+  border-radius: 12px;
+  padding: 12px;
 }
 
 .stat-card strong {
   display: block;
-  font-size: 2rem;
+  font-size: 1.85rem;
   margin-top: 8px;
-  font-family: "IBM Plex Serif", Georgia, serif;
+  letter-spacing: -0.04em;
 }
 
 .form-grid {
@@ -257,30 +388,53 @@ textarea {
   gap: 12px;
 }
 
+.inline-form-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
 .field {
   display: grid;
   gap: 6px;
 }
 
 .field label {
-  font-size: 0.86rem;
+  font-size: 0.68rem;
   color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
 }
 
 .field input,
 .field select,
 .field textarea {
   width: 100%;
-  border-radius: 14px;
-  border: 1px solid rgba(56, 43, 24, 0.16);
+  border-radius: 10px;
+  border: 1px solid var(--line);
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(7, 17, 29, 0.96);
   color: var(--text);
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: rgba(123, 216, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(51, 195, 255, 0.1);
+  background: rgba(10, 22, 35, 0.99);
 }
 
 .field textarea {
   min-height: 92px;
   resize: vertical;
+}
+
+.field-span-2 {
+  grid-column: span 2;
 }
 
 .actions {
@@ -294,97 +448,97 @@ textarea {
 .ghost-button,
 .danger-button,
 a.button {
-  border: 0;
-  border-radius: 999px;
-  padding: 9px 14px;
+  border-radius: 10px;
+  padding: 9px 12px;
   cursor: pointer;
-  transition:
-    transform 160ms ease,
-    opacity 160ms ease,
-    box-shadow 160ms ease,
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-.button:hover,
-.secondary-button:hover,
-.ghost-button:hover,
-.danger-button:hover,
-a.button:hover,
-.button:focus-visible,
-.secondary-button:focus-visible,
-.ghost-button:focus-visible,
-.danger-button:focus-visible,
-a.button:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(56, 43, 24, 0.14);
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
 
 .button {
-  background: linear-gradient(135deg, #0b6e4f, #0d8a63);
+  border: 1px solid rgba(51, 195, 255, 0.22);
+  background: linear-gradient(135deg, #0f3956, #13537a);
   color: white;
-  box-shadow: 0 12px 24px rgba(11, 110, 79, 0.22);
 }
 
 .button:hover,
-a.button:hover,
 .button:focus-visible,
+a.button:hover,
 a.button:focus-visible {
-  background: linear-gradient(135deg, #0d7b58, #10956d);
+  background: linear-gradient(135deg, #124564, #1a6997);
 }
 
 .secondary-button {
-  background: #efe4b6;
-  color: #4d3914;
+  border: 1px solid var(--line);
+  background: rgba(19, 39, 61, 0.96);
+  color: var(--text);
 }
 
 .secondary-button:hover,
 .secondary-button:focus-visible {
-  background: #e8d998;
+  background: rgba(23, 47, 74, 0.96);
 }
 
 .ghost-button {
-  background: rgba(255, 255, 255, 0.78);
-  color: var(--text);
   border: 1px solid var(--line);
+  background: rgba(10, 22, 35, 0.92);
+  color: var(--text);
 }
 
 .ghost-button:hover,
 .ghost-button:focus-visible {
-  background: rgba(255, 255, 255, 0.96);
-  border-color: rgba(11, 110, 79, 0.26);
+  background: rgba(14, 30, 48, 0.98);
+  border-color: rgba(123, 216, 255, 0.24);
 }
 
 .danger-button {
-  background: rgba(169, 48, 48, 0.12);
+  border: 1px solid rgba(240, 107, 126, 0.2);
+  background: rgba(240, 107, 126, 0.1);
   color: var(--danger);
 }
 
 .danger-button:hover,
 .danger-button:focus-visible {
-  background: rgba(169, 48, 48, 0.2);
-  border-color: rgba(169, 48, 48, 0.24);
+  background: rgba(240, 107, 126, 0.16);
+}
+
+.product-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
 }
 
 .product-price {
-  font-size: 1.45rem;
-  font-family: "IBM Plex Serif", Georgia, serif;
-  margin: 10px 0 2px;
+  font-size: 1.42rem;
+  margin: 6px 0 2px;
+  letter-spacing: -0.04em;
 }
 
-.product-meta,
-.meta-list,
-.helper {
+.product-price-block {
+  min-width: 130px;
+  text-align: right;
+}
+
+.product-price-caption {
   color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.4;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.product-card-controls {
+  margin-top: 12px;
 }
 
 .meta-list {
   display: grid;
   gap: 6px;
   margin: 12px 0;
+}
+
+.compact-meta {
+  gap: 4px;
+  margin: 10px 0 0;
 }
 
 .pill-row {
@@ -396,15 +550,17 @@ a.button:focus-visible {
 
 .pill {
   border-radius: 999px;
-  padding: 5px 9px;
-  background: rgba(11, 110, 79, 0.09);
-  color: #0a5d43;
-  font-size: 0.78rem;
+  padding: 4px 8px;
+  background: rgba(51, 195, 255, 0.08);
+  color: var(--accent-strong);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .cart-pill {
-  background: rgba(194, 107, 31, 0.14);
-  color: #92531b;
+  background: rgba(214, 163, 73, 0.12);
+  color: var(--warn);
 }
 
 .helper {
@@ -412,37 +568,33 @@ a.button:focus-visible {
 }
 
 .status {
-  border-radius: 16px;
+  border-radius: 10px;
   padding: 10px 12px;
   margin-bottom: 10px;
+  border: 1px solid transparent;
 }
 
 .status.info {
-  background: rgba(11, 110, 79, 0.08);
-  color: #0b6e4f;
+  background: rgba(51, 195, 255, 0.08);
+  color: var(--accent-strong);
+  border-color: rgba(51, 195, 255, 0.16);
 }
 
 .status.warn {
-  background: rgba(194, 107, 31, 0.1);
-  color: #92531b;
+  background: rgba(214, 163, 73, 0.08);
+  color: var(--warn);
+  border-color: rgba(214, 163, 73, 0.16);
 }
 
 .status.error {
-  background: rgba(169, 48, 48, 0.1);
+  background: rgba(240, 107, 126, 0.08);
   color: var(--danger);
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 12px;
-  margin-bottom: 10px;
+  border-color: rgba(240, 107, 126, 0.16);
 }
 
 .table-card {
-  border-radius: 24px;
-  padding: 20px;
+  border-radius: 14px;
+  padding: 16px;
 }
 
 .activity-list {
@@ -455,20 +607,14 @@ a.button:focus-visible {
   margin-bottom: 8px;
 }
 
-.header-bar {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  align-items: center;
-  margin-bottom: 14px;
-}
-
 .token-block {
   margin-top: 12px;
   padding: 12px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px dashed rgba(56, 43, 24, 0.2);
+  border-radius: 10px;
+  background: rgba(7, 17, 29, 0.92);
+  border: 1px dashed var(--line-strong);
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 0.76rem;
 }
 
 .token-block code {
@@ -477,94 +623,30 @@ a.button:focus-visible {
   margin-top: 4px;
 }
 
-.compact-hero {
-  grid-template-columns: 1.5fr 0.85fr;
-}
-
-.hero-card-primary {
-  min-height: 0;
-}
-
-.hero-card-compact {
-  display: grid;
-  gap: 12px;
-  align-content: start;
-}
-
-.hero-topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
-  gap: 18px;
-}
-
-.mini-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.mini-stat {
-  border-radius: 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.62);
-}
-
-.mini-stat span {
-  display: block;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.mini-stat strong {
-  display: block;
-  margin-top: 4px;
-  font-size: 1.35rem;
-  font-family: "IBM Plex Serif", Georgia, serif;
-}
-
 .user-chip {
   min-width: 180px;
   text-align: left;
   border: 1px solid var(--line);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.82);
-  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(10, 22, 35, 0.96);
+  padding: 10px 12px;
   cursor: pointer;
-  transition:
-    transform 160ms ease,
-    box-shadow 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease;
 }
 
 .user-chip:hover,
 .user-chip:focus-visible {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.96);
-  border-color: rgba(11, 110, 79, 0.26);
-  box-shadow: 0 12px 24px rgba(56, 43, 24, 0.12);
+  background: rgba(14, 30, 48, 0.98);
+  border-color: rgba(123, 216, 255, 0.22);
 }
 
 .user-chip-label {
   display: block;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  font-size: 0.68rem;
   color: var(--muted);
   margin-bottom: 4px;
-}
-
-.dense-two-column {
-  grid-template-columns: 1fr 1fr;
-  margin-bottom: 14px;
-}
-
-.split-panel {
-  display: grid;
-  grid-template-columns: 0.7fr 1.3fr;
-  gap: 12px;
 }
 
 .compact-list {
@@ -572,20 +654,35 @@ a.button:focus-visible {
   overflow: auto;
 }
 
-.compact-card {
-  padding: 12px 14px;
+.catalog-search-card {
+  padding: 14px;
+  margin-bottom: 14px;
+  background: rgba(9, 19, 31, 0.96);
 }
 
-.compact-meta {
-  gap: 4px;
-  margin: 10px 0 0;
+.catalog-search-summary {
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  background: rgba(10, 22, 35, 0.92);
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
 }
 
-.compact-card-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: start;
+.catalog-search-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.catalog-search-grid + .catalog-search-grid {
+  margin-top: 12px;
+}
+
+.catalog-search-actions {
+  margin-top: 14px;
 }
 
 .compact-actions {
@@ -596,13 +693,6 @@ a.button:focus-visible {
   gap: 10px;
 }
 
-.inline-form-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 180px) 1fr;
-  gap: 10px;
-  align-items: end;
-}
-
 .checkout-summary-card {
   position: sticky;
   bottom: 0;
@@ -611,7 +701,7 @@ a.button:focus-visible {
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(31, 26, 20, 0.34);
+  background: rgba(2, 8, 14, 0.54);
   backdrop-filter: blur(8px);
   z-index: 50;
   display: flex;
@@ -623,9 +713,9 @@ a.button:focus-visible {
   height: 100vh;
   overflow: auto;
   padding: 18px;
-  background: rgba(252, 248, 239, 0.98);
+  background: rgba(10, 21, 34, 0.99);
   border-left: 1px solid var(--line);
-  box-shadow: -18px 0 60px rgba(43, 31, 13, 0.16);
+  box-shadow: -18px 0 60px rgba(0, 0, 0, 0.34);
 }
 
 .compact-token {
@@ -633,17 +723,20 @@ a.button:focus-visible {
 }
 
 @media (max-width: 1100px) {
-  .hero,
+  .terminal-header,
+  .console-stats,
   .columns,
   .catalog-layout,
-  .compact-hero,
   .dense-two-column,
   .split-panel {
     grid-template-columns: 1fr;
   }
 
-  .hero-topbar {
+  .catalog-detail-header,
+  .section-header,
+  .header-bar {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .user-chip {
@@ -654,21 +747,40 @@ a.button:focus-visible {
 
 @media (max-width: 760px) {
   .page-shell {
-    width: min(100vw - 20px, 1380px);
+    width: min(100vw - 18px, 1480px);
     padding-top: 12px;
   }
 
   .auth-grid,
   .form-row,
   .inline-form-row,
-  .mini-stats-grid {
+  .catalog-search-grid,
+  .console-stats,
+  .catalog-table-head,
+  .catalog-list-item {
     grid-template-columns: 1fr;
   }
 
-  .hero-card,
+  .product-card-header,
+  .catalog-search-header,
+  .terminal-header {
+    flex-direction: column;
+  }
+
+  .product-price-block {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .field-span-2 {
+    grid-column: span 1;
+  }
+
   .panel,
-  .table-card {
-    border-radius: 20px;
+  .table-card,
+  .terminal-header-main,
+  .terminal-header-side {
+    border-radius: 12px;
     padding: 14px;
   }
 

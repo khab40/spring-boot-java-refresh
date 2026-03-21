@@ -32,14 +32,21 @@ export function ProductCard({
 
   return (
     <article className="product-card">
-      <div className="pill-row">
-        <span className="pill">{product.accessType}</span>
-        <span className="pill">{product.billingInterval}</span>
-        {isInCart ? <span className="pill cart-pill">In cart: {cartQuantity}</span> : null}
+      <div className="product-card-header">
+        <div>
+          <div className="pill-row">
+            <span className="pill">{product.accessType}</span>
+            <span className="pill">{product.billingInterval}</span>
+            {isInCart ? <span className="pill cart-pill">In cart: {cartQuantity}</span> : null}
+          </div>
+          <strong>{product.name}</strong>
+          <div className="helper">{product.code}</div>
+        </div>
+        <div className="product-price-block">
+          <div className="product-price">{formatMoney(product.price, product.currency)}</div>
+          <div className="product-price-caption">per commercial unit</div>
+        </div>
       </div>
-      <strong>{product.name}</strong>
-      <div className="helper">{product.code}</div>
-      <div className="product-price">{formatMoney(product.price, product.currency)}</div>
       <div className="product-meta">{describeProductMode(product)}</div>
       <div className="meta-list">
         <span>{product.description || "No description provided."}</span>
@@ -47,7 +54,7 @@ export function ProductCard({
         <span>Realtime channels: {product.realtimeSubscriptionLimit ?? "Unlimited"}</span>
         <span>Payload cap: {product.maxRealtimePayloadKb ?? "Unlimited"} KB</span>
       </div>
-      <div className="form-row">
+      <div className="form-row product-card-controls">
         <div className="field">
           <label htmlFor={`quantity-${product.id}`}>License units</label>
           <input
