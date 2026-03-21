@@ -119,6 +119,30 @@ export type PaymentTransaction = {
   }[];
 };
 
+export type OtdDeliveryFile = {
+  fileName: string;
+  objectKey: string;
+  signedUrl: string;
+  sizeBytes: number;
+  linkExpiresAt: string;
+};
+
+export type OtdDelivery = {
+  deliveryId: number;
+  productId: number;
+  productCode: string;
+  productName: string;
+  status: string;
+  sqlText: string;
+  rowCount: number;
+  fileCount: number;
+  totalBytes: number;
+  consumedMegabytes: number;
+  remainingBatchMegabytes?: number | null;
+  createdAt: string;
+  files: OtdDeliveryFile[];
+};
+
 export type UsageSummary = {
   userId: number;
   productId: number;

@@ -12,6 +12,7 @@ import {
   Entitlement,
   MarketData,
   MarketDataRuntimeStatus,
+  OtdDelivery,
   PaymentTransaction,
   SessionState,
   UserProfile
@@ -79,6 +80,11 @@ type ProfileForm = {
   company: string;
   country: string;
   phoneNumber: string;
+};
+
+type OtdQueryForm = {
+  productId: string;
+  sql: string;
 };
 
 const defaultCatalogFilters: CatalogFilters = {
@@ -157,6 +163,11 @@ const defaultProfileForm: ProfileForm = {
   phoneNumber: ""
 };
 
+const defaultOtdQueryForm: OtdQueryForm = {
+  productId: "",
+  sql: "SELECT * FROM market_data ORDER BY timestamp DESC LIMIT 100"
+};
+
 export function MarketDataLakeShell() {
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [authForm, setAuthForm] = useState<AuthForm>(defaultAuthForm);
@@ -168,6 +179,7 @@ export function MarketDataLakeShell() {
   const [marketDataRuntime, setMarketDataRuntime] = useState<MarketDataRuntimeStatus | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlement[]>([]);
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
+  const [otdDeliveries, setOtdDeliveries] = useState<OtdDelivery[]>([]);
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [cart, setCart] = useState<Record<number, CartEntry>>({});
@@ -183,6 +195,7 @@ export function MarketDataLakeShell() {
   const [catalogItemForm, setCatalogItemForm] = useState<AdminCatalogItemForm>(defaultCatalogItemForm);
   const [productForm, setProductForm] = useState<AdminProductForm>(defaultProductForm);
   const [marketDataForm, setMarketDataForm] = useState<MarketDataForm>(defaultMarketDataForm);
+  const [otdQueryForm, setOtdQueryForm] = useState<OtdQueryForm>(defaultOtdQueryForm);
   const privateRequestVersion = useRef(0);
   const passwordTooShort = authForm.password.length > 0 && authForm.password.length < 8;
   const profile: UserProfile | null | undefined = session?.profile;
@@ -222,6 +235,7 @@ export function MarketDataLakeShell() {
     if (!session?.accessToken) {
       setEntitlements([]);
       setPayments([]);
+      setOtdDeliveries([]);
       setDashboard(null);
       saveSession(null);
       return;
@@ -287,6 +301,17 @@ export function MarketDataLakeShell() {
     () => payments.find((payment) => payment.id === selectedPaymentId) ?? payments[0] ?? null,
     [payments, selectedPaymentId]
   );
+  const otdEligibleOffers = useMemo(
+    () => selectedCatalogItem?.offers.filter((offer) => offer.accessType === "ONE_TIME_PURCHASE") ?? [],
+    [selectedCatalogItem]
+  );
+  const selectedCatalogDeliveries = useMemo(
+    () =>
+      otdDeliveries.filter((delivery) =>
+        selectedCatalogItem?.offers.some((offer) => offer.id === delivery.productId)
+      ),
+    [otdDeliveries, selectedCatalogItem]
+  );
 
   const cartEntries = useMemo(() => Object.values(cart), [cart]);
   const cartTotal = useMemo(
@@ -302,6 +327,19 @@ export function MarketDataLakeShell() {
       setProductForm((current) => ({ ...current, catalogItemId: String(catalogItems[0].id) }));
     }
   }, [catalogItems, selectedCatalogItemId, productForm.catalogItemId]);
+
+  useEffect(() => {
+    if (!selectedCatalogItem) {
+      return;
+    }
+
+    const preferredOffer = selectedCatalogItem.offers.find((offer) => offer.accessType === "ONE_TIME_PURCHASE") ?? selectedCatalogItem.offers[0];
+    const defaultSymbol = selectedCatalogItem.sampleSymbols?.split(",")[0]?.trim() || catalogFilters.symbol.trim() || "AAPL";
+    setOtdQueryForm({
+      productId: preferredOffer ? String(preferredOffer.id) : "",
+      sql: `SELECT * FROM market_data WHERE symbol = '${defaultSymbol === "*" ? "AAPL" : defaultSymbol}' ORDER BY timestamp DESC LIMIT 100`
+    });
+  }, [selectedCatalogItem]);
 
   useEffect(() => {
     if (!profile) {
@@ -392,6 +430,12 @@ export function MarketDataLakeShell() {
         return;
       }
       setPayments(userPayments);
+
+      const deliveries = await api.myOtdDeliveries(nextSession.accessToken);
+      if (privateRequestVersion.current !== requestVersion) {
+        return;
+      }
+      setOtdDeliveries(deliveries);
 
       if (profile.role === "ADMIN") {
         const adminDashboard = await api.adminDashboard(nextSession.accessToken);
@@ -646,6 +690,11 @@ export function MarketDataLakeShell() {
   }
 
   async function handleUsage(product: DataProduct) {
+    if (product.accessType === "ONE_TIME_PURCHASE") {
+      await handleOtdDelivery(product.id);
+      return;
+    }
+
     if (!session?.apiKey) {
       setError("You need an API key before recording usage.");
       return;
@@ -670,6 +719,37 @@ export function MarketDataLakeShell() {
       if (session.accessToken) {
         setEntitlements(await api.myEntitlements(session.accessToken));
       }
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleOtdDelivery(productIdOverride?: number) {
+    if (!session?.accessToken) {
+      setError("Sign in before running an OTD delivery.");
+      return;
+    }
+    const resolvedProductId = productIdOverride ?? Number(otdQueryForm.productId);
+    if (!resolvedProductId) {
+      setError("Select a one-time offer before running the OTD delivery.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const delivery = await api.createOtdDelivery(
+        {
+          productId: resolvedProductId,
+          sql: otdQueryForm.sql
+        },
+        session.accessToken
+      );
+      setOtdDeliveries((current) => [delivery, ...current]);
+      setEntitlements(await api.myEntitlements(session.accessToken));
+      setMessage(`OTD delivery created for ${delivery.productCode}. Signed download link is ready.`);
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -1217,6 +1297,69 @@ export function MarketDataLakeShell() {
                 {selectedCatalogItem.offers.length === 0 ? (
                   <div className="helper">No sellable offers are linked to this catalog item yet.</div>
                 ) : null}
+              </div>
+
+              <div className="card catalog-detail-card">
+                <div className="section-header">
+                  <div>
+                    <h3>OTD Query Console</h3>
+                    <div className="helper">Run a simple SQL query, export results to FSS as Parquet, and receive signed delivery links.</div>
+                  </div>
+                </div>
+                {profile ? (
+                  otdEligibleOffers.length > 0 ? (
+                    <div className="form-grid">
+                      <SelectField
+                        label="Paid one-time offer"
+                        value={otdQueryForm.productId}
+                        options={otdEligibleOffers.map((offer) => `${offer.id}:${offer.name}`)}
+                        onChange={(value) => setOtdQueryForm((current) => ({ ...current, productId: value }))}
+                        optionValueMode="split-id"
+                      />
+                      <Field
+                        label="SQL query"
+                        value={otdQueryForm.sql}
+                        onChange={(value) => setOtdQueryForm((current) => ({ ...current, sql: value }))}
+                        textarea
+                      />
+                      <div className="actions">
+                        <button className="button" onClick={() => void handleOtdDelivery()} disabled={busy || !otdQueryForm.productId}>
+                          Run OTD delivery
+                        </button>
+                      </div>
+                      <div className="card compact-card">
+                        <strong>Simulated Data Delivery link</strong>
+                        {selectedCatalogDeliveries.length > 0 ? (
+                          <div className="activity-list compact-activity-list">
+                            {selectedCatalogDeliveries.slice(0, 3).map((delivery) => (
+                              <div className="activity-card compact-card" key={delivery.deliveryId}>
+                                <div className="meta-list compact-meta">
+                                  <span>{delivery.productCode}</span>
+                                  <span>{delivery.rowCount} rows · {delivery.fileCount} file{delivery.fileCount === 1 ? "" : "s"}</span>
+                                  <span>Consumed {delivery.consumedMegabytes} MB</span>
+                                  <span>Created {formatDate(delivery.createdAt)}</span>
+                                </div>
+                                <div className="actions">
+                                  {delivery.files.map((file) => (
+                                    <a className="button" href={file.signedUrl} target="_blank" rel="noreferrer" key={file.objectKey}>
+                                      {file.fileName}
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="helper">No simulated delivery generated for this dataset yet.</div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="helper">This dataset does not currently have a one-time delivery offer linked to it.</div>
+                  )
+                ) : (
+                  <div className="helper">Sign in and complete checkout before running an OTD delivery.</div>
+                )}
               </div>
             </div>
           ) : (

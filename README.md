@@ -15,9 +15,11 @@ Market Data Lake is a full-stack market data platform for catalog-driven data di
 - API key issuance for user registration and login flows
 - API key usage tracking with per-product quota enforcement for batch downloads and realtime subscriptions
 - Usage history tables that can later support billing, forecasting, and audit reporting
+- OTD SQL delivery flow for one-time products with Parquet export, signed download links, and delivery history
 - Asynchronous Stripe checkout session creation and webhook-based payment completion
 - Preview market-data stubs for runtime and development
 - H2 database for transactional local development and containerized runtime
+- MinIO-based S3-compatible object storage for generated download files
 - Separate Next.js web UI running in its own Docker container
 - Separate Apache Airflow standalone container for future workflow orchestration
 - Spring Boot Actuator health groups and a custom monitoring summary endpoint
@@ -42,6 +44,7 @@ Market Data Lake is a full-stack market data platform for catalog-driven data di
 - Checkout requests create `PaymentTransaction` records with `PaymentTransactionItem` cart lines and then start Stripe session creation asynchronously.
 - Stripe webhooks finalize payments and grant `UserEntitlement` access for subscriptions and one-time purchases.
 - API access registration and login flows mint API keys for users, and each usage event is written into dedicated usage tables while entitlement limits are enforced.
+- One-time-delivery users can submit a restricted SQL query, receive Parquet files stored in MinIO, and later access the same signed links from delivery history in the UI.
 - The Next.js web UI consumes the backend REST API for signup, signin, catalog browsing, checkout polling, entitlement inspection, and admin audit workflows.
 - Airflow is reserved for future ingestion adapters and data-lake-facing orchestration rather than the current request-response path.
 
@@ -74,9 +77,11 @@ For full-stack local runtime with the UI, Mailpit, Airflow, Prometheus, and Graf
 3. Market-data endpoints are served from the in-memory preview stub
 4. The separate web UI is available at `http://localhost:3000`
 5. Local email capture is available at `http://localhost:8025` through Mailpit
-6. Airflow is available at `http://localhost:8081` for future orchestration work
-7. Prometheus is available at `http://localhost:9090`
-8. Grafana is available at `http://localhost:3001`
+6. MinIO object storage API is available at `http://localhost:9000`
+7. MinIO console is available at `http://localhost:9001`
+8. Airflow is available at `http://localhost:8081` for future orchestration work
+9. Prometheus is available at `http://localhost:9090`
+10. Grafana is available at `http://localhost:3001`
 
 ### Airflow Configuration
 

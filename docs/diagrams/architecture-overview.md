@@ -16,13 +16,22 @@ graph TB
     Services --> Security[JWT Auth OAuth2 and API Key Access]
     Services --> Commerce[Catalog Payments Entitlements]
     Services --> Market[Market Data Service]
+    Services --> OTD[OTD Delivery Service]
     Services --> Legacy[Legacy Subscriptions]
+    OTD --> SQL[Restricted SQL Engine]
+    OTD --> Export[Parquet Export]
+    OTD --> ObjectStore[Object Storage Service]
+    OTD --> Mail[Delivery Email Service]
     Security --> Repositories[Spring Data JPA Repositories]
     Commerce --> Repositories
     Legacy --> Repositories
+    OTD --> Repositories
     Market --> StubStore[Stub Market Data Store]
+    SQL --> StubStore
     StubStore --> Preview[(Preview Market Data)]
     Repositories --> H2[(H2 Transaction Store)]
+    ObjectStore --> MinIO[(MinIO FSS)]
     Scripts[Docker Helper Scripts] --> Api
     Scripts --> Next
+    Scripts --> MinIO
 ```

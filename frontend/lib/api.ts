@@ -7,6 +7,7 @@ import {
   Entitlement,
   MarketData,
   MarketDataRuntimeStatus,
+  OtdDelivery,
   PaymentTransaction,
   SessionState,
   UsageSummary,
@@ -14,7 +15,7 @@ import {
   UserProfile
 } from "./types";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/backend";
 
 type HttpMethod = "GET" | "POST" | "PUT";
 
@@ -96,6 +97,7 @@ export const api = {
   updateMe: (payload: UpdateUserProfilePayload, token: string) => send<UserProfile>("/api/auth/me", "PUT", payload, token),
   myEntitlements: (token: string) => request<Entitlement[]>("/api/auth/me/entitlements", undefined, token),
   myPayments: (token: string) => request<PaymentTransaction[]>("/api/auth/me/payments", undefined, token),
+  myOtdDeliveries: (token: string) => request<OtdDelivery[]>("/api/market-data/otd-deliveries/mine", undefined, token),
   catalogItems: (filters?: CatalogFilters) =>
     request<CatalogItem[]>(`/api/catalog/items?${filters ? toQueryString(filters) : "activeOnly=true"}`),
   products: () => request<DataProduct[]>("/api/catalog/products?activeOnly=true"),
@@ -106,6 +108,8 @@ export const api = {
   paymentStatus: (paymentId: number, token: string) =>
     request<PaymentTransaction>(`/api/payments/${paymentId}`, undefined, token),
   usage: (payload: Record<string, unknown>) => send<UsageSummary>("/api/access/usage", "POST", payload),
+  createOtdDelivery: (payload: Record<string, unknown>, token: string) =>
+    send<OtdDelivery>("/api/market-data/otd-deliveries", "POST", payload, token),
   adminDashboard: (token: string) => request<AdminDashboard>("/api/admin/dashboard", undefined, token),
   createCatalogItem: (payload: Record<string, unknown>, token: string) =>
     send<CatalogItem>("/api/catalog/items", "POST", payload, token),

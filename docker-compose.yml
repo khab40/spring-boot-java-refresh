@@ -5,6 +5,7 @@ services:
     ports:
       - "8080:8080"
     depends_on:
+      - fss
       - mailpit
       - airflow
     environment:
@@ -35,6 +36,14 @@ services:
       GOOGLE_SCOPES: ${GOOGLE_SCOPES:-openid,profile,email}
       APP_MONITORING_FRONTEND_HEALTH_URL: http://frontend:3000/api/health
       APP_MONITORING_AIRFLOW_HEALTH_URL: http://airflow:8080/api/v2/monitor/health
+      APP_FSS_ENDPOINT: ${APP_FSS_ENDPOINT:-http://fss:9000}
+      APP_FSS_PUBLIC_ENDPOINT: ${APP_FSS_PUBLIC_ENDPOINT:-http://localhost:9000}
+      APP_FSS_REGION: ${APP_FSS_REGION:-us-east-1}
+      APP_FSS_ACCESS_KEY: ${FSS_ACCESS_KEY:-marketdata}
+      APP_FSS_SECRET_KEY: ${FSS_SECRET_KEY:-marketdata-secret}
+      APP_FSS_BUCKET: ${APP_FSS_BUCKET:-market-data-deliveries}
+      APP_FSS_SIGNED_URL_TTL_MINUTES: ${APP_FSS_SIGNED_URL_TTL_MINUTES:-1440}
+      APP_OTD_MAX_ROWS_PER_FILE: ${APP_OTD_MAX_ROWS_PER_FILE:-1000}
     volumes:
       - app_relational_data:/data/h2
 
@@ -45,6 +54,19 @@ services:
       - "3000:3000"
     depends_on:
       - app
+
+  fss:
+    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    container_name: market-data-lake-fss
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${FSS_ACCESS_KEY:-marketdata}
+      MINIO_ROOT_PASSWORD: ${FSS_SECRET_KEY:-marketdata-secret}
+    volumes:
+      - fss_data:/data
 
   mailpit:
     image: axllent/mailpit:v1.26
@@ -109,6 +131,7 @@ services:
 
 volumes:
   app_relational_data:
+  fss_data:
   airflow_home:
   prometheus_data:
   grafana_data:
