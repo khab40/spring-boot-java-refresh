@@ -4,6 +4,7 @@ import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.entity.UserEntitlement;
 import com.example.springbootjavarefresh.entity.UserRole;
 import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
+import com.example.springbootjavarefresh.service.PaymentService;
 import com.example.springbootjavarefresh.service.UserEntitlementService;
 import com.example.springbootjavarefresh.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,9 @@ class UserControllerTest {
 
     @MockBean
     private UserEntitlementService userEntitlementService;
+
+    @MockBean
+    private PaymentService paymentService;
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -173,5 +177,21 @@ class UserControllerTest {
         mockMvc.perform(get("/api/users/1/entitlements"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(30L));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void shouldReturnUserPayments() throws Exception {
+        com.example.springbootjavarefresh.entity.PaymentTransaction payment = new com.example.springbootjavarefresh.entity.PaymentTransaction();
+        payment.setId(40L);
+        payment.setCurrency("usd");
+        payment.setStatus(com.example.springbootjavarefresh.entity.PaymentTransactionStatus.SUCCEEDED);
+        payment.setAmount(new java.math.BigDecimal("99.99"));
+        when(paymentService.getTransactionsByUserId(1L)).thenReturn(List.of(payment));
+
+        mockMvc.perform(get("/api/users/1/payments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(40L))
+                .andExpect(jsonPath("$[0].status").value("SUCCEEDED"));
     }
 }

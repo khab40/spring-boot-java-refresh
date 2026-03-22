@@ -101,6 +101,8 @@ export const api = {
   updateUserRole: (userId: number, role: string, token: string) =>
     request<UserProfile>(`/api/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) }, token),
   createUserAdmin: (payload: Record<string, unknown>, token: string) => send<UserProfile>("/api/users", "POST", payload, token),
+  userEntitlementsAdmin: (userId: number, token: string) => request<Entitlement[]>(`/api/users/${userId}/entitlements`, undefined, token),
+  userPaymentsAdmin: (userId: number, token: string) => request<PaymentTransaction[]>(`/api/users/${userId}/payments`, undefined, token),
   myEntitlements: (token: string) => request<Entitlement[]>("/api/auth/me/entitlements", undefined, token),
   myPayments: (token: string) => request<PaymentTransaction[]>("/api/auth/me/payments", undefined, token),
   myOtdDeliveries: (token: string) => request<OtdDelivery[]>("/api/market-data/otd-deliveries/mine", undefined, token),

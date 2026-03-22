@@ -248,6 +248,8 @@ export function MarketDataLakeShell() {
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [adminUsers, setAdminUsers] = useState<UserProfile[]>([]);
   const [selectedAdminUserId, setSelectedAdminUserId] = useState<number | null>(null);
+  const [selectedAdminUserPayments, setSelectedAdminUserPayments] = useState<PaymentTransaction[]>([]);
+  const [selectedAdminUserEntitlements, setSelectedAdminUserEntitlements] = useState<Entitlement[]>([]);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [cart, setCart] = useState<Record<number, CartEntry>>({});
   const [selectedAccessProductId, setSelectedAccessProductId] = useState<number | null>(null);
@@ -308,6 +310,8 @@ export function MarketDataLakeShell() {
       setOtdDeliveries([]);
       setDashboard(null);
       setAdminUsers([]);
+      setSelectedAdminUserPayments([]);
+      setSelectedAdminUserEntitlements([]);
       saveSession(null);
       return;
     }
@@ -412,6 +416,37 @@ export function MarketDataLakeShell() {
 
     setAdminUserForm(toAdminUserForm(selectedAdminUser));
   }, [selectedAdminUser]);
+
+  useEffect(() => {
+    if (!session?.accessToken || session.profile?.role !== "ADMIN" || !selectedAdminUserId) {
+      setSelectedAdminUserPayments([]);
+      setSelectedAdminUserEntitlements([]);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [userPayments, userEntitlements] = await Promise.all([
+          api.userPaymentsAdmin(selectedAdminUserId, session.accessToken),
+          api.userEntitlementsAdmin(selectedAdminUserId, session.accessToken)
+        ]);
+        if (cancelled) {
+          return;
+        }
+        setSelectedAdminUserPayments(userPayments);
+        setSelectedAdminUserEntitlements(userEntitlements);
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(getErrorMessage(requestError));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.accessToken, session?.profile?.role, selectedAdminUserId]);
 
   useEffect(() => {
     if (!selectedCatalogItemId && catalogItems.length > 0) {
@@ -2013,6 +2048,55 @@ export function MarketDataLakeShell() {
                   <button className="button" onClick={handleAdminCreateUser} disabled={busy}>
                     Create user
                   </button>
+                </div>
+              </div>
+              <div className="grid mt-3">
+                <div className="card compact-card">
+                  <strong>Persisted purchase history</strong>
+                  {selectedAdminUserPayments.length > 0 ? (
+                    <div className="activity-list compact-activity-list">
+                      {selectedAdminUserPayments.slice(0, 6).map((payment) => (
+                        <div className="activity-card compact-card" key={payment.id}>
+                          <div className="compact-card-header">
+                            <strong>#{payment.id}</strong>
+                            <span className="pill">{payment.status}</span>
+                          </div>
+                          <div className="meta-list compact-meta">
+                            <span>{formatMoney(payment.amount, payment.currency)}</span>
+                            <span>{formatDate(payment.createdAt)}</span>
+                            <span>
+                              {payment.items?.map((item) => `${item.product.code} x${item.quantity}`).join(", ") || payment.product?.code || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="helper">No persisted purchases found for the selected user.</div>
+                  )}
+                </div>
+                <div className="card compact-card">
+                  <strong>Persisted entitlements</strong>
+                  {selectedAdminUserEntitlements.length > 0 ? (
+                    <div className="activity-list compact-activity-list">
+                      {selectedAdminUserEntitlements.map((entitlement) => (
+                        <div className="activity-card compact-card" key={entitlement.id}>
+                          <div className="compact-card-header">
+                            <strong>{entitlement.product.code}</strong>
+                            <span className="pill">{entitlement.status}</span>
+                          </div>
+                          <div className="meta-list compact-meta">
+                            <span>{entitlement.accessType}</span>
+                            <span>Units: {entitlement.purchasedUnits}</span>
+                            <span>Granted: {formatDate(entitlement.grantedAt)}</span>
+                            <span>Expires: {entitlement.expiresAt ? formatDate(entitlement.expiresAt) : "Open-ended"}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="helper">No persisted entitlements found for the selected user.</div>
+                  )}
                 </div>
               </div>
             </div>

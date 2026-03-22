@@ -4,8 +4,10 @@ import com.example.springbootjavarefresh.dto.AdminUpdateUserRequest;
 import com.example.springbootjavarefresh.dto.CreateUserRequest;
 import com.example.springbootjavarefresh.dto.UpdateUserRoleRequest;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
+import com.example.springbootjavarefresh.entity.PaymentTransaction;
 import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.entity.UserEntitlement;
+import com.example.springbootjavarefresh.service.PaymentService;
 import com.example.springbootjavarefresh.service.UserEntitlementService;
 import com.example.springbootjavarefresh.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,10 +26,12 @@ public class UserController {
 
     private final UserService userService;
     private final UserEntitlementService userEntitlementService;
+    private final PaymentService paymentService;
 
-    public UserController(UserService userService, UserEntitlementService userEntitlementService) {
+    public UserController(UserService userService, UserEntitlementService userEntitlementService, PaymentService paymentService) {
         this.userService = userService;
         this.userEntitlementService = userEntitlementService;
+        this.paymentService = paymentService;
     }
 
     @GetMapping
@@ -73,5 +77,12 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserEntitlement>> getEntitlements(@PathVariable Long id) {
         return ResponseEntity.ok(userEntitlementService.getEntitlementsByUserId(id));
+    }
+
+    @GetMapping("/{id}/payments")
+    @Operation(summary = "Get a user's persisted payment history")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<PaymentTransaction>> getPayments(@PathVariable Long id) {
+        return ResponseEntity.ok(paymentService.getTransactionsByUserId(id));
     }
 }
