@@ -36,11 +36,16 @@ async function request<T>(path: string, init?: RequestInit, token?: string): Pro
 
   if (!response.ok) {
     const text = await response.text();
+    const defaultMessage = text || `${response.status} ${response.statusText}`;
     try {
       const parsed = JSON.parse(text) as { message?: string };
-      throw new Error(parsed.message || text || `${response.status} ${response.statusText}`);
+      const error = new Error(parsed.message || defaultMessage) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     } catch {
-      throw new Error(text || `${response.status} ${response.statusText}`);
+      const error = new Error(defaultMessage) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
   }
 

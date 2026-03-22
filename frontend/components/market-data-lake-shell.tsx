@@ -261,6 +261,7 @@ export function MarketDataLakeShell() {
   const [message, setMessage] = useState("Loading the Market Data Lake catalog.");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [privateDataLoaded, setPrivateDataLoaded] = useState(false);
   const [catalogItemForm, setCatalogItemForm] = useState<AdminCatalogItemForm>(defaultCatalogItemForm);
   const [productForm, setProductForm] = useState<AdminProductForm>(defaultProductForm);
   const [editingProductId, setEditingProductId] = useState("0");
@@ -312,11 +313,13 @@ export function MarketDataLakeShell() {
       setAdminUsers([]);
       setSelectedAdminUserPayments([]);
       setSelectedAdminUserEntitlements([]);
+      setPrivateDataLoaded(false);
       saveSession(null);
       return;
     }
 
     saveSession(session);
+    setPrivateDataLoaded(false);
     void refreshPrivateData(session, requestVersion);
   }, [session]);
 
@@ -598,7 +601,25 @@ export function MarketDataLakeShell() {
         setDashboard(null);
         setAdminUsers([]);
       }
+      setPrivateDataLoaded(true);
     } catch (requestError) {
+      if (isAuthError(requestError)) {
+        privateRequestVersion.current += 1;
+        setSession(null);
+        setEntitlements([]);
+        setPayments([]);
+        setOtdDeliveries([]);
+        setDashboard(null);
+        setAdminUsers([]);
+        setSelectedAdminUserPayments([]);
+        setSelectedAdminUserEntitlements([]);
+        setPrivateDataLoaded(false);
+        saveSession(null);
+        setError("");
+        setMessage("Session expired. Sign in again to load persisted purchases and entitlements.");
+        return;
+      }
+      setPrivateDataLoaded(true);
       setError(getErrorMessage(requestError));
     }
   }
@@ -1261,7 +1282,9 @@ export function MarketDataLakeShell() {
             </div>
           </div>
           {profile ? (
-            accessSummaries.length > 0 ? (
+            !privateDataLoaded ? (
+              <div className="helper">Loading persisted entitlements and quota usage...</div>
+            ) : accessSummaries.length > 0 ? (
               <div className="split-panel">
                 <div className="catalog-list compact-list">
                   {accessSummaries.map((entry) => (
@@ -1628,7 +1651,9 @@ export function MarketDataLakeShell() {
           </div>
         </div>
         {profile ? (
-          payments.length > 0 ? (
+          !privateDataLoaded ? (
+            <div className="helper">Loading persisted purchase history...</div>
+          ) : payments.length > 0 ? (
             <div className="split-panel">
               <div className="catalog-list compact-list">
                 {payments.map((payment) => (
@@ -2200,6 +2225,10 @@ function getErrorMessage(error: unknown) {
     return error.message;
   }
   return "Unexpected request failure.";
+}
+
+function isAuthError(error: unknown) {
+  return typeof error === "object" && error !== null && "status" in error && ((((error as { status?: number }).status) === 401) || (((error as { status?: number }).status) === 403));
 }
 
 async function withRetries<T>(operation: () => Promise<T>, retries: number, retryDelayMs: number) {
