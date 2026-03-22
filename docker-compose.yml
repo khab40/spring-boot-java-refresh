@@ -34,6 +34,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_SCOPES: ${GOOGLE_SCOPES:-openid,profile,email}
+      APP_AUTH_GOOGLE_REDIRECT_URI: ${APP_AUTH_GOOGLE_REDIRECT_URI:-http://localhost:8080/login/oauth2/code/google}
       APP_MONITORING_FRONTEND_HEALTH_URL: http://frontend:3000/api/health
       APP_MONITORING_AIRFLOW_HEALTH_URL: http://airflow:8080/api/v2/monitor/health
       APP_FSS_ENDPOINT: ${APP_FSS_ENDPOINT:-http://fss:9000}

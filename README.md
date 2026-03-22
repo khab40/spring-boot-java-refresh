@@ -195,6 +195,7 @@ Google OAuth2 login is configured with:
 - `app.auth.google.client-id`
 - `app.auth.google.client-secret`
 - `app.auth.google.scopes`
+- `app.auth.google.redirect-uri`
 
 For local Google sandbox-style testing:
 
@@ -202,7 +203,8 @@ For local Google sandbox-style testing:
 2. Add `http://localhost:8080/login/oauth2/code/google` as an authorized redirect URI.
 3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`.
 4. Keep `APP_AUTH_OAUTH2_SUCCESS_URL=http://localhost:3000/oauth/callback`.
-5. Start the stack and use `Continue with Google` in the UI.
+5. Keep `APP_AUTH_GOOGLE_REDIRECT_URI=http://localhost:8080/login/oauth2/code/google` unless you intentionally changed the backend public URL.
+6. Start the stack and use `Continue with Google` in the UI.
 
 In Docker runtime, Mailpit is started automatically for local verification testing:
 

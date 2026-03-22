@@ -19,7 +19,8 @@ public class OAuth2ClientConfig {
     public ClientRegistrationRepository clientRegistrationRepository(
             @Value("${app.auth.google.client-id}") String clientId,
             @Value("${app.auth.google.client-secret}") String clientSecret,
-            @Value("${app.auth.google.scopes:openid,profile,email}") String scopes) {
+            @Value("${app.auth.google.scopes:openid,profile,email}") String scopes,
+            @Value("${app.auth.google.redirect-uri:http://localhost:8080/login/oauth2/code/google}") String redirectUri) {
         ClientRegistration google = ClientRegistration.withRegistrationId("google")
                 .clientId(clientId)
                 .clientSecret(clientSecret)
@@ -28,7 +29,7 @@ public class OAuth2ClientConfig {
                         .filter(value -> !value.isBlank())
                         .toList())
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+                .redirectUri(redirectUri)
                 .authorizationUri("https://accounts.google.com/o/oauth2/v2/auth")
                 .tokenUri("https://oauth2.googleapis.com/token")
                 .userInfoUri("https://openidconnect.googleapis.com/v1/userinfo")
