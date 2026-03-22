@@ -34,6 +34,9 @@ class DataCatalogServiceTest {
     @Mock
     private DataProductRepository dataProductRepository;
 
+    @Mock
+    private CatalogPricingService catalogPricingService;
+
     @InjectMocks
     private DataCatalogService dataCatalogService;
 
@@ -57,6 +60,12 @@ class DataCatalogServiceTest {
         request.setAccessType(ProductAccessType.ONE_TIME_PURCHASE);
         request.setBillingInterval(BillingInterval.YEARLY);
         request.setBatchDownloadLimitMb(new BigDecimal("250.00"));
+        request.setMinimumPrice(new BigDecimal("149.00"));
+        request.setIncludedSymbols(2);
+        request.setIncludedDays(5);
+        request.setPricePerAdditionalSymbol(new BigDecimal("3.50"));
+        request.setPricePerAdditionalDay(new BigDecimal("1.25"));
+        request.setFullUniverseSymbolCount(500);
         request.setRealtimeSubscriptionLimit(3);
         request.setMaxRealtimePayloadKb(512);
 
@@ -75,6 +84,12 @@ class DataCatalogServiceTest {
         assertEquals(ProductAccessType.ONE_TIME_PURCHASE, persisted.getAccessType());
         assertEquals(BillingInterval.ONE_TIME, persisted.getBillingInterval());
         assertEquals(new BigDecimal("149.00"), persisted.getPrice());
+        assertEquals(new BigDecimal("149.00"), persisted.getMinimumPrice());
+        assertEquals(2, persisted.getIncludedSymbols());
+        assertEquals(5, persisted.getIncludedDays());
+        assertEquals(new BigDecimal("3.50"), persisted.getPricePerAdditionalSymbol());
+        assertEquals(new BigDecimal("1.25"), persisted.getPricePerAdditionalDay());
+        assertEquals(500, persisted.getFullUniverseSymbolCount());
         assertEquals("USD", persisted.getCurrency());
         assertEquals(new BigDecimal("250.00"), persisted.getBatchDownloadLimitMb());
         assertEquals(3, persisted.getRealtimeSubscriptionLimit());
@@ -145,6 +160,7 @@ class DataCatalogServiceTest {
         matchingOffer.setName("AAPL Stream");
         matchingOffer.setAccessType(ProductAccessType.SUBSCRIPTION);
         matchingOffer.setBillingInterval(BillingInterval.MONTHLY);
+        matchingOffer.setPrice(new BigDecimal("25.00"));
         matchingOffer.setActive(true);
 
         DataProduct nonMatchingOffer = new DataProduct();
@@ -153,11 +169,32 @@ class DataCatalogServiceTest {
         nonMatchingOffer.setName("META Download");
         nonMatchingOffer.setAccessType(ProductAccessType.ONE_TIME_PURCHASE);
         nonMatchingOffer.setBillingInterval(BillingInterval.ONE_TIME);
+        nonMatchingOffer.setPrice(new BigDecimal("10.00"));
         nonMatchingOffer.setActive(true);
 
         when(dataCatalogItemRepository.findByActiveTrueOrderByNameAsc()).thenReturn(List.of(aapl, meta));
         when(dataProductRepository.findByCatalogItem_IdOrderByPriceAsc(1L)).thenReturn(List.of(matchingOffer));
         when(dataProductRepository.findByCatalogItem_IdOrderByPriceAsc(2L)).thenReturn(List.of(nonMatchingOffer));
+        when(catalogPricingService.quote(org.mockito.ArgumentMatchers.eq(aapl), org.mockito.ArgumentMatchers.eq(matchingOffer), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new CatalogPricingService.CatalogPriceQuote(
+                        new BigDecimal("39.00"),
+                        1,
+                        16,
+                        LocalDate.of(2026, 3, 5),
+                        LocalDate.of(2026, 3, 20),
+                        "AAPL | 2026-03-05 to 2026-03-20",
+                        "base 25.00 + 0 extra symbol(s) + 15 extra day(s)"
+                ));
+        when(catalogPricingService.quote(org.mockito.ArgumentMatchers.eq(meta), org.mockito.ArgumentMatchers.eq(nonMatchingOffer), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new CatalogPricingService.CatalogPriceQuote(
+                        new BigDecimal("10.00"),
+                        1,
+                        1,
+                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(2026, 1, 1),
+                        "META | 2026-01-01 to 2026-01-01",
+                        "base 10.00 + 0 extra symbol(s) + 0 extra day(s)"
+                ));
 
         List<com.example.springbootjavarefresh.dto.CatalogItemResponse> results = dataCatalogService.searchCatalogItems(
                 true,
@@ -174,5 +211,7 @@ class DataCatalogServiceTest {
         assertEquals("AAPL-QUOTE", results.getFirst().code());
         assertEquals(1, results.getFirst().offers().size());
         assertEquals("AAPL-STREAM", results.getFirst().offers().getFirst().getCode());
+        assertEquals(new BigDecimal("39.00"), results.getFirst().offers().getFirst().getQuotedPrice());
+        assertEquals("AAPL | 2026-03-05 to 2026-03-20", results.getFirst().selectionSummary());
     }
 }

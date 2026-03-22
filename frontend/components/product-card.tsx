@@ -24,7 +24,8 @@ export function ProductCard({
   onUsageAction,
   disabled
 }: ProductCardProps) {
-  const total = Number(product.price) * quantity;
+  const quotedUnitPrice = Number(product.quotedPrice ?? product.price);
+  const total = quotedUnitPrice * quantity;
   const actionLabel =
     product.accessType === "SUBSCRIPTION" ? "Simulate stream delivery" : "Simulate dataset delivery";
   const isInCart = cartQuantity > 0;
@@ -43,13 +44,17 @@ export function ProductCard({
           <div className="helper">{product.code}</div>
         </div>
         <div className="product-price-block">
-          <div className="product-price">{formatMoney(product.price, product.currency)}</div>
-          <div className="product-price-caption">per commercial unit</div>
+          <div className="product-price">{formatMoney(quotedUnitPrice, product.currency)}</div>
+          <div className="product-price-caption">
+            {product.quotedPrice != null ? "dynamic quote for current selection" : "per commercial unit"}
+          </div>
         </div>
       </div>
       <div className="product-meta">{describeProductMode(product)}</div>
       <div className="meta-list">
         <span>{product.description || "No description provided."}</span>
+        <span>Selection: {product.quotedSelectionSummary || "Default catalog selection"}</span>
+        <span>{product.quotedPricingSummary || `Base price: ${formatMoney(product.price, product.currency)}`}</span>
         <span>Batch limit: {product.batchDownloadLimitMb ?? "Unlimited"} MB</span>
         <span>Realtime channels: {product.realtimeSubscriptionLimit ?? "Unlimited"}</span>
         <span>Payload cap: {product.maxRealtimePayloadKb ?? "Unlimited"} KB</span>

@@ -1,6 +1,9 @@
 package com.example.springbootjavarefresh.controller;
 
+import com.example.springbootjavarefresh.dto.AdminUpdateUserRequest;
 import com.example.springbootjavarefresh.dto.CreateUserRequest;
+import com.example.springbootjavarefresh.dto.UpdateUserRoleRequest;
+import com.example.springbootjavarefresh.dto.UserProfileResponse;
 import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.entity.UserEntitlement;
 import com.example.springbootjavarefresh.service.UserEntitlementService;
@@ -30,15 +33,16 @@ public class UserController {
     @GetMapping
     @Operation(summary = "Get all users")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userService.getAllUsers());
+    public ResponseEntity<List<UserProfileResponse>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers().stream().map(UserProfileResponse::fromUser).toList());
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get user by ID")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+    public ResponseEntity<UserProfileResponse> getUserById(@PathVariable Long id) {
         return userService.getUserById(id)
+                .map(UserProfileResponse::fromUser)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -46,8 +50,22 @@ public class UserController {
     @PostMapping
     @Operation(summary = "Create a new user")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<User> createUser(@Valid @RequestBody CreateUserRequest request) {
-        return ResponseEntity.ok(userService.createUser(request));
+    public ResponseEntity<UserProfileResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
+        return ResponseEntity.ok(UserProfileResponse.fromUser(userService.createUser(request)));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Admin update for a user")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserProfileResponse> updateUser(@PathVariable Long id, @Valid @RequestBody AdminUpdateUserRequest request) {
+        return ResponseEntity.ok(UserProfileResponse.fromUser(userService.updateUserAdmin(id, request)));
+    }
+
+    @PatchMapping("/{id}/role")
+    @Operation(summary = "Update a user's role")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserProfileResponse> updateUserRole(@PathVariable Long id, @Valid @RequestBody UpdateUserRoleRequest request) {
+        return ResponseEntity.ok(UserProfileResponse.fromUser(userService.updateUserRole(id, request.getRole())));
     }
 
     @GetMapping("/{id}/entitlements")

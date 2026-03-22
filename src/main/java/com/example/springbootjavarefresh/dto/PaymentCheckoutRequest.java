@@ -78,6 +78,8 @@ public class PaymentCheckoutRequest {
         @NotNull
         private Integer quantity;
 
+        private CatalogSelectionRequest selection;
+
         public Long getProductId() {
             return productId;
         }
@@ -92,6 +94,14 @@ public class PaymentCheckoutRequest {
 
         public void setQuantity(Integer quantity) {
             this.quantity = quantity;
+        }
+
+        public CatalogSelectionRequest getSelection() {
+            return selection;
+        }
+
+        public void setSelection(CatalogSelectionRequest selection) {
+            this.selection = selection;
         }
     }
 }

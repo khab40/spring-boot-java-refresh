@@ -33,12 +33,25 @@ export type DataProduct = {
   name: string;
   description?: string | null;
   price: number;
+  minimumPrice?: number | null;
+  includedSymbols?: number | null;
+  includedDays?: number | null;
+  pricePerAdditionalSymbol?: number | null;
+  pricePerAdditionalDay?: number | null;
+  fullUniverseSymbolCount?: number | null;
   currency: string;
   accessType: "ONE_TIME_PURCHASE" | "SUBSCRIPTION";
   billingInterval: "ONE_TIME" | "MONTHLY" | "YEARLY";
   batchDownloadLimitMb?: number | null;
   realtimeSubscriptionLimit?: number | null;
   maxRealtimePayloadKb?: number | null;
+  quotedPrice?: number | null;
+  quotedSymbolCount?: number | null;
+  quotedDayCount?: number | null;
+  quotedStartDate?: string | null;
+  quotedEndDate?: string | null;
+  quotedSelectionSummary?: string | null;
+  quotedPricingSummary?: string | null;
   active?: boolean;
 };
 
@@ -55,6 +68,7 @@ export type CatalogItem = {
   sampleSymbols?: string | null;
   coverageStartDate?: string | null;
   coverageEndDate?: string | null;
+  selectionSummary?: string | null;
   active?: boolean;
   createdAt?: string;
   offers: DataProduct[];

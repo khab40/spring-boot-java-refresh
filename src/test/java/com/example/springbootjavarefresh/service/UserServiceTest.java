@@ -1,20 +1,20 @@
 package com.example.springbootjavarefresh.service;
 
-import com.example.springbootjavarefresh.dto.CreateUserRequest;
-import com.example.springbootjavarefresh.entity.AuthProvider;
+import com.example.springbootjavarefresh.dto.AdminUpdateUserRequest;
 import com.example.springbootjavarefresh.entity.User;
+import com.example.springbootjavarefresh.entity.UserRole;
 import com.example.springbootjavarefresh.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class UserServiceTest {
@@ -34,56 +34,50 @@ class UserServiceTest {
     }
 
     @Test
-    void shouldMapRequestIntoUserEntity() {
-        CreateUserRequest request = new CreateUserRequest();
-        request.setEmail("buyer@example.com");
-        request.setFirstName("Ada");
-        request.setLastName("Lovelace");
-        request.setPassword("super-secret");
-        request.setCompany("Quant Desk");
-        request.setCountry("UK");
-        request.setPhoneNumber("+44-555-000");
+    void shouldUpdateUserWithAdminFields() {
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("old@example.com");
+        user.setFirstName("Old");
+        user.setLastName("Name");
+        user.setRole(UserRole.USER);
+        user.setEmailVerified(Boolean.FALSE);
 
-        User savedUser = new User();
-        savedUser.setId(7L);
-        when(userRepository.findByEmail("buyer@example.com")).thenReturn(java.util.Optional.empty());
-        when(passwordEncoder.encode(anyString())).thenReturn("hashed-secret");
-        when(userRepository.save(org.mockito.ArgumentMatchers.any(User.class))).thenReturn(savedUser);
+        AdminUpdateUserRequest request = new AdminUpdateUserRequest();
+        request.setEmail("new@example.com");
+        request.setFirstName("New");
+        request.setLastName("Name");
+        request.setCompany("Desk");
+        request.setCountry("US");
+        request.setPhoneNumber("+1");
+        request.setRole(UserRole.ADMIN);
+        request.setEmailVerified(Boolean.TRUE);
 
-        User result = userService.createUser(request);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("new@example.com")).thenReturn(Optional.empty());
+        when(userRepository.save(org.mockito.ArgumentMatchers.any(User.class))).thenAnswer((invocation) -> invocation.getArgument(0));
 
-        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(captor.capture());
-        User persisted = captor.getValue();
-        assertEquals("buyer@example.com", persisted.getEmail());
-        assertEquals("Ada", persisted.getFirstName());
-        assertEquals("Lovelace", persisted.getLastName());
-        assertEquals("hashed-secret", persisted.getPasswordHash());
-        assertEquals(AuthProvider.LOCAL, persisted.getAuthProvider());
-        assertEquals("Quant Desk", persisted.getCompany());
-        assertEquals("UK", persisted.getCountry());
-        assertEquals("+44-555-000", persisted.getPhoneNumber());
-        assertEquals(false, persisted.isEmailVerified());
-        assertEquals(7L, result.getId());
+        User updated = userService.updateUserAdmin(7L, request);
+
+        assertEquals("new@example.com", updated.getEmail());
+        assertEquals("New", updated.getFirstName());
+        assertEquals("Desk", updated.getCompany());
+        assertEquals(UserRole.ADMIN, updated.getRole());
+        assertEquals(true, updated.isEmailVerified());
+        assertEquals(LocalDateTime.class, updated.getEmailVerifiedAt().getClass());
     }
 
     @Test
-    void shouldCreateOrUpdateGoogleUser() {
-        User savedUser = new User();
-        savedUser.setId(9L);
-        when(userRepository.findByAuthProviderAndProviderSubject(AuthProvider.GOOGLE, "google-subject"))
-                .thenReturn(java.util.Optional.empty());
-        when(userRepository.findByEmail("google@example.com")).thenReturn(java.util.Optional.empty());
-        when(userRepository.save(org.mockito.ArgumentMatchers.any(User.class))).thenReturn(savedUser);
+    void shouldUpdateOnlyRoleWhenRequested() {
+        User user = new User();
+        user.setId(11L);
+        user.setRole(UserRole.USER);
 
-        User result = userService.upsertGoogleUser("google@example.com", "Go", "Ogler", "google-subject");
+        when(userRepository.findById(11L)).thenReturn(Optional.of(user));
+        when(userRepository.save(org.mockito.ArgumentMatchers.any(User.class))).thenAnswer((invocation) -> invocation.getArgument(0));
 
-        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(captor.capture());
-        User persisted = captor.getValue();
-        assertEquals(AuthProvider.GOOGLE, persisted.getAuthProvider());
-        assertEquals("google-subject", persisted.getProviderSubject());
-        assertEquals(true, persisted.isEmailVerified());
-        assertEquals(9L, result.getId());
+        User updated = userService.updateUserRole(11L, UserRole.ADMIN);
+
+        assertEquals(UserRole.ADMIN, updated.getRole());
     }
 }

@@ -1,6 +1,7 @@
 package com.example.springbootjavarefresh.service;
 
 import com.example.springbootjavarefresh.dto.CatalogItemResponse;
+import com.example.springbootjavarefresh.dto.CatalogSelectionRequest;
 import com.example.springbootjavarefresh.dto.CreateCatalogItemRequest;
 import com.example.springbootjavarefresh.dto.CreateDataProductRequest;
 import com.example.springbootjavarefresh.entity.BillingInterval;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,23 +25,26 @@ public class DataCatalogService {
 
     private final DataCatalogItemRepository dataCatalogItemRepository;
     private final DataProductRepository dataProductRepository;
+    private final CatalogPricingService catalogPricingService;
 
     public DataCatalogService(
             DataCatalogItemRepository dataCatalogItemRepository,
-            DataProductRepository dataProductRepository) {
+            DataProductRepository dataProductRepository,
+            CatalogPricingService catalogPricingService) {
         this.dataCatalogItemRepository = dataCatalogItemRepository;
         this.dataProductRepository = dataProductRepository;
+        this.catalogPricingService = catalogPricingService;
     }
 
     public List<CatalogItemResponse> getAllCatalogItems() {
         return dataCatalogItemRepository.findAllByOrderByNameAsc().stream()
-                .map(this::toCatalogItemResponse)
+                .map((item) -> toCatalogItemResponse(item, null))
                 .toList();
     }
 
     public List<CatalogItemResponse> getActiveCatalogItems() {
         return dataCatalogItemRepository.findByActiveTrueOrderByNameAsc().stream()
-                .map(this::toCatalogItemResponse)
+                .map((item) -> toCatalogItemResponse(item, null))
                 .toList();
     }
 
@@ -56,8 +61,10 @@ public class DataCatalogService {
                 ? dataCatalogItemRepository.findByActiveTrueOrderByNameAsc()
                 : dataCatalogItemRepository.findAllByOrderByNameAsc();
 
+        CatalogSelectionRequest selection = catalogPricingService.fromFilters(symbol, availableFrom, availableTo);
+
         return items.stream()
-                .map((item) -> toFilteredCatalogItemResponse(item, activeOnly, accessType, billingInterval))
+                .map((item) -> toFilteredCatalogItemResponse(item, activeOnly, accessType, billingInterval, selection))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .filter((item) -> matchesSymbol(item, symbol))
@@ -68,11 +75,11 @@ public class DataCatalogService {
     }
 
     public Optional<CatalogItemResponse> getCatalogItemById(Long id) {
-        return dataCatalogItemRepository.findById(id).map(this::toCatalogItemResponse);
+        return dataCatalogItemRepository.findById(id).map((item) -> toCatalogItemResponse(item, null));
     }
 
     public Optional<CatalogItemResponse> getCatalogItemByCode(String code) {
-        return dataCatalogItemRepository.findByCode(code).map(this::toCatalogItemResponse);
+        return dataCatalogItemRepository.findByCode(code).map((item) -> toCatalogItemResponse(item, null));
     }
 
     public DataCatalogItem createCatalogItem(CreateCatalogItemRequest request) {
@@ -125,31 +132,82 @@ public class DataCatalogService {
         product.setAccessType(request.getAccessType());
         product.setBillingInterval(request.getBillingInterval());
         product.setBatchDownloadLimitMb(request.getBatchDownloadLimitMb());
+        product.setMinimumPrice(request.getMinimumPrice());
+        product.setIncludedSymbols(request.getIncludedSymbols());
+        product.setIncludedDays(request.getIncludedDays());
+        product.setPricePerAdditionalSymbol(request.getPricePerAdditionalSymbol());
+        product.setPricePerAdditionalDay(request.getPricePerAdditionalDay());
+        product.setFullUniverseSymbolCount(request.getFullUniverseSymbolCount());
         product.setRealtimeSubscriptionLimit(request.getRealtimeSubscriptionLimit());
         product.setMaxRealtimePayloadKb(request.getMaxRealtimePayloadKb());
         return dataProductRepository.save(product);
     }
 
-    private CatalogItemResponse toCatalogItemResponse(DataCatalogItem item) {
-        return CatalogItemResponse.from(item, dataProductRepository.findByCatalogItem_IdOrderByPriceAsc(item.getId()));
+    public DataProduct updateProduct(Long id, CreateDataProductRequest request) {
+        DataProduct product = dataProductRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Data product not found: " + id));
+        DataCatalogItem catalogItem = dataCatalogItemRepository.findById(request.getCatalogItemId())
+                .orElseThrow(() -> new IllegalArgumentException("Catalog item not found: " + request.getCatalogItemId()));
+
+        product.setCatalogItem(catalogItem);
+        product.setCode(request.getCode());
+        product.setName(request.getName());
+        product.setDescription(request.getDescription());
+        product.setPrice(request.getPrice());
+        product.setCurrency(request.getCurrency());
+        product.setAccessType(request.getAccessType());
+        product.setBillingInterval(request.getAccessType() == ProductAccessType.ONE_TIME_PURCHASE ? BillingInterval.ONE_TIME : request.getBillingInterval());
+        product.setBatchDownloadLimitMb(request.getBatchDownloadLimitMb());
+        product.setMinimumPrice(request.getMinimumPrice());
+        product.setIncludedSymbols(request.getIncludedSymbols());
+        product.setIncludedDays(request.getIncludedDays());
+        product.setPricePerAdditionalSymbol(request.getPricePerAdditionalSymbol());
+        product.setPricePerAdditionalDay(request.getPricePerAdditionalDay());
+        product.setFullUniverseSymbolCount(request.getFullUniverseSymbolCount());
+        product.setRealtimeSubscriptionLimit(request.getRealtimeSubscriptionLimit());
+        product.setMaxRealtimePayloadKb(request.getMaxRealtimePayloadKb());
+        return dataProductRepository.save(product);
+    }
+
+    private CatalogItemResponse toCatalogItemResponse(DataCatalogItem item, CatalogSelectionRequest selection) {
+        List<DataProduct> offers = dataProductRepository.findByCatalogItem_IdOrderByPriceAsc(item.getId()).stream()
+                .map((offer) -> applyQuote(item, offer, selection))
+                .sorted(Comparator.comparing((DataProduct offer) -> offer.getQuotedPrice() == null ? offer.getPrice() : offer.getQuotedPrice()))
+                .toList();
+        return CatalogItemResponse.from(item, offers, offers.isEmpty() ? null : offers.getFirst().getQuotedSelectionSummary());
     }
 
     private Optional<CatalogItemResponse> toFilteredCatalogItemResponse(
             DataCatalogItem item,
             boolean activeOnly,
             ProductAccessType accessType,
-            BillingInterval billingInterval) {
+            BillingInterval billingInterval,
+            CatalogSelectionRequest selection) {
         List<DataProduct> offers = dataProductRepository.findByCatalogItem_IdOrderByPriceAsc(item.getId()).stream()
                 .filter((offer) -> !activeOnly || Boolean.TRUE.equals(offer.getActive()))
                 .filter((offer) -> accessType == null || accessType == offer.getAccessType())
                 .filter((offer) -> billingInterval == null || billingInterval == offer.getBillingInterval())
+                .map((offer) -> applyQuote(item, offer, selection))
+                .sorted(Comparator.comparing((DataProduct offer) -> offer.getQuotedPrice() == null ? offer.getPrice() : offer.getQuotedPrice()))
                 .toList();
 
         if ((accessType != null || billingInterval != null) && offers.isEmpty()) {
             return Optional.empty();
         }
 
-        return Optional.of(CatalogItemResponse.from(item, offers));
+        return Optional.of(CatalogItemResponse.from(item, offers, offers.isEmpty() ? null : offers.getFirst().getQuotedSelectionSummary()));
+    }
+
+    private DataProduct applyQuote(DataCatalogItem item, DataProduct offer, CatalogSelectionRequest selection) {
+        CatalogPricingService.CatalogPriceQuote quote = catalogPricingService.quote(item, offer, selection);
+        offer.setQuotedPrice(quote.quotedPrice());
+        offer.setQuotedSymbolCount(quote.quotedSymbolCount());
+        offer.setQuotedDayCount(quote.quotedDayCount());
+        offer.setQuotedStartDate(quote.quotedStartDate());
+        offer.setQuotedEndDate(quote.quotedEndDate());
+        offer.setQuotedSelectionSummary(quote.quotedSelectionSummary());
+        offer.setQuotedPricingSummary(quote.quotedPricingSummary());
+        return offer;
     }
 
     private boolean matchesSymbol(CatalogItemResponse item, String symbol) {

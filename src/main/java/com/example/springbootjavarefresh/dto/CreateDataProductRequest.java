@@ -33,6 +33,18 @@ public class CreateDataProductRequest {
 
     private BigDecimal batchDownloadLimitMb;
 
+    private BigDecimal minimumPrice;
+
+    private Integer includedSymbols;
+
+    private Integer includedDays;
+
+    private BigDecimal pricePerAdditionalSymbol;
+
+    private BigDecimal pricePerAdditionalDay;
+
+    private Integer fullUniverseSymbolCount;
+
     private Integer realtimeSubscriptionLimit;
 
     private Integer maxRealtimePayloadKb;
@@ -115,6 +127,54 @@ public class CreateDataProductRequest {
 
     public void setRealtimeSubscriptionLimit(Integer realtimeSubscriptionLimit) {
         this.realtimeSubscriptionLimit = realtimeSubscriptionLimit;
+    }
+
+    public BigDecimal getMinimumPrice() {
+        return minimumPrice;
+    }
+
+    public void setMinimumPrice(BigDecimal minimumPrice) {
+        this.minimumPrice = minimumPrice;
+    }
+
+    public Integer getIncludedSymbols() {
+        return includedSymbols;
+    }
+
+    public void setIncludedSymbols(Integer includedSymbols) {
+        this.includedSymbols = includedSymbols;
+    }
+
+    public Integer getIncludedDays() {
+        return includedDays;
+    }
+
+    public void setIncludedDays(Integer includedDays) {
+        this.includedDays = includedDays;
+    }
+
+    public BigDecimal getPricePerAdditionalSymbol() {
+        return pricePerAdditionalSymbol;
+    }
+
+    public void setPricePerAdditionalSymbol(BigDecimal pricePerAdditionalSymbol) {
+        this.pricePerAdditionalSymbol = pricePerAdditionalSymbol;
+    }
+
+    public BigDecimal getPricePerAdditionalDay() {
+        return pricePerAdditionalDay;
+    }
+
+    public void setPricePerAdditionalDay(BigDecimal pricePerAdditionalDay) {
+        this.pricePerAdditionalDay = pricePerAdditionalDay;
+    }
+
+    public Integer getFullUniverseSymbolCount() {
+        return fullUniverseSymbolCount;
+    }
+
+    public void setFullUniverseSymbolCount(Integer fullUniverseSymbolCount) {
+        this.fullUniverseSymbolCount = fullUniverseSymbolCount;
     }
 
     public Integer getMaxRealtimePayloadKb() {

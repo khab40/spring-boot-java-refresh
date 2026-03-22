@@ -2,6 +2,7 @@ package com.example.springbootjavarefresh.service;
 
 import com.example.springbootjavarefresh.dto.PaymentCheckoutRequest;
 import com.example.springbootjavarefresh.entity.BillingInterval;
+import com.example.springbootjavarefresh.entity.DataCatalogItem;
 import com.example.springbootjavarefresh.entity.DataProduct;
 import com.example.springbootjavarefresh.entity.PaymentTransaction;
 import com.example.springbootjavarefresh.entity.PaymentTransactionItem;
@@ -46,6 +47,9 @@ class PaymentServiceTest {
     @Mock
     private UserEntitlementService userEntitlementService;
 
+    @Mock
+    private CatalogPricingService catalogPricingService;
+
     @InjectMocks
     private PaymentService paymentService;
 
@@ -76,6 +80,9 @@ class PaymentServiceTest {
         product.setCurrency("usd");
         product.setAccessType(ProductAccessType.SUBSCRIPTION);
         product.setBillingInterval(BillingInterval.MONTHLY);
+        DataCatalogItem catalogItem = new DataCatalogItem();
+        catalogItem.setId(12L);
+        product.setCatalogItem(catalogItem);
 
         PaymentTransaction saved = new PaymentTransaction();
         saved.setId(77L);
@@ -87,6 +94,16 @@ class PaymentServiceTest {
 
         when(userRepository.findById(4L)).thenReturn(Optional.of(user));
         when(dataProductRepository.findById(9L)).thenReturn(Optional.of(product));
+        when(catalogPricingService.quote(org.mockito.ArgumentMatchers.eq(catalogItem), org.mockito.ArgumentMatchers.eq(product), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(new CatalogPricingService.CatalogPriceQuote(
+                        new BigDecimal("71.00"),
+                        1,
+                        1,
+                        java.time.LocalDate.of(2026, 3, 1),
+                        java.time.LocalDate.of(2026, 3, 1),
+                        "DEFAULT",
+                        "base 71.00"
+                ));
         when(paymentTransactionRepository.save(org.mockito.ArgumentMatchers.any(PaymentTransaction.class))).thenReturn(saved);
 
         PaymentTransaction result = paymentService.initiateCheckout(request);
@@ -96,13 +113,14 @@ class PaymentServiceTest {
         PaymentTransaction persisted = captor.getValue();
         assertEquals(user, persisted.getUser());
         assertEquals(product, persisted.getProduct());
-        assertEquals(new BigDecimal("118.00"), persisted.getAmount());
+        assertEquals(new BigDecimal("142.00"), persisted.getAmount());
         assertEquals("usd", persisted.getCurrency());
         assertEquals(PaymentTransactionStatus.PENDING, persisted.getStatus());
         assertEquals(1, persisted.getItems().size());
         PaymentTransactionItem persistedItem = persisted.getItems().get(0);
         assertEquals(2, persistedItem.getQuantity());
-        assertEquals(new BigDecimal("118.00"), persistedItem.getLineAmount());
+        assertEquals(new BigDecimal("71.00"), persistedItem.getUnitPrice());
+        assertEquals(new BigDecimal("142.00"), persistedItem.getLineAmount());
         verify(paymentAsyncProcessor).createCheckoutSessionAsync(77L, "https://example.com/success", "https://example.com/cancel");
         assertEquals(77L, result.getId());
     }
@@ -147,6 +165,7 @@ class PaymentServiceTest {
         subscription.setCurrency("usd");
         subscription.setAccessType(ProductAccessType.SUBSCRIPTION);
         subscription.setBillingInterval(BillingInterval.MONTHLY);
+        subscription.setCatalogItem(new DataCatalogItem());
 
         DataProduct oneTime = new DataProduct();
         oneTime.setId(10L);
@@ -155,9 +174,30 @@ class PaymentServiceTest {
         oneTime.setCurrency("usd");
         oneTime.setAccessType(ProductAccessType.ONE_TIME_PURCHASE);
         oneTime.setBillingInterval(BillingInterval.ONE_TIME);
+        oneTime.setCatalogItem(new DataCatalogItem());
 
         when(dataProductRepository.findById(9L)).thenReturn(Optional.of(subscription));
         when(dataProductRepository.findById(10L)).thenReturn(Optional.of(oneTime));
+        when(catalogPricingService.quote(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(subscription), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(new CatalogPricingService.CatalogPriceQuote(
+                        new BigDecimal("59.00"),
+                        1,
+                        1,
+                        java.time.LocalDate.of(2026, 3, 1),
+                        java.time.LocalDate.of(2026, 3, 1),
+                        "DEFAULT",
+                        "base 59.00"
+                ));
+        when(catalogPricingService.quote(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(oneTime), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(new CatalogPricingService.CatalogPriceQuote(
+                        new BigDecimal("99.00"),
+                        1,
+                        1,
+                        java.time.LocalDate.of(2026, 3, 1),
+                        java.time.LocalDate.of(2026, 3, 1),
+                        "DEFAULT",
+                        "base 99.00"
+                ));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> paymentService.initiateCheckout(request));
         assertEquals("Stripe checkout does not support mixing subscriptions and one-time purchases", ex.getMessage());

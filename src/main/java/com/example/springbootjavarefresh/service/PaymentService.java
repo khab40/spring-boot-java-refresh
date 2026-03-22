@@ -1,6 +1,7 @@
 package com.example.springbootjavarefresh.service;
 
 import com.example.springbootjavarefresh.dto.PaymentCheckoutRequest;
+import com.example.springbootjavarefresh.entity.DataCatalogItem;
 import com.example.springbootjavarefresh.entity.DataProduct;
 import com.example.springbootjavarefresh.entity.PaymentTransaction;
 import com.example.springbootjavarefresh.entity.PaymentTransactionItem;
@@ -30,6 +31,7 @@ public class PaymentService {
     private final PaymentAsyncProcessor paymentAsyncProcessor;
     private final StripePaymentGateway stripePaymentGateway;
     private final UserEntitlementService userEntitlementService;
+    private final CatalogPricingService catalogPricingService;
 
     public PaymentService(
             PaymentTransactionRepository paymentTransactionRepository,
@@ -37,13 +39,15 @@ public class PaymentService {
             DataProductRepository dataProductRepository,
             PaymentAsyncProcessor paymentAsyncProcessor,
             StripePaymentGateway stripePaymentGateway,
-            UserEntitlementService userEntitlementService) {
+            UserEntitlementService userEntitlementService,
+            CatalogPricingService catalogPricingService) {
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.userRepository = userRepository;
         this.dataProductRepository = dataProductRepository;
         this.paymentAsyncProcessor = paymentAsyncProcessor;
         this.stripePaymentGateway = stripePaymentGateway;
         this.userEntitlementService = userEntitlementService;
+        this.catalogPricingService = catalogPricingService;
     }
 
     public PaymentTransaction initiateCheckout(PaymentCheckoutRequest request) {
@@ -141,10 +145,16 @@ public class PaymentService {
             }
             DataProduct product = dataProductRepository.findById(requestItem.getProductId())
                     .orElseThrow(() -> new IllegalArgumentException("Data product not found: " + requestItem.getProductId()));
+            DataCatalogItem catalogItem = product.getCatalogItem();
+            if (catalogItem == null) {
+                throw new IllegalArgumentException("Catalog item not found for product: " + product.getId());
+            }
+            BigDecimal unitPrice = catalogPricingService.quote(catalogItem, product, requestItem.getSelection()).quotedPrice();
             resolvedItems.add(new ResolvedCheckoutItem(
                     product,
                     quantity,
-                    product.getPrice().multiply(BigDecimal.valueOf(quantity))
+                    unitPrice,
+                    unitPrice.multiply(BigDecimal.valueOf(quantity))
             ));
         }
         return resolvedItems;
@@ -178,7 +188,7 @@ public class PaymentService {
             item.setTransaction(transaction);
             item.setProduct(resolvedItem.product());
             item.setQuantity(resolvedItem.quantity());
-            item.setUnitPrice(resolvedItem.product().getPrice());
+            item.setUnitPrice(resolvedItem.unitPrice());
             item.setLineAmount(resolvedItem.lineAmount());
             item.setCurrency(resolvedItem.product().getCurrency());
             items.add(item);
@@ -186,5 +196,5 @@ public class PaymentService {
         return items;
     }
 
-    private record ResolvedCheckoutItem(DataProduct product, int quantity, BigDecimal lineAmount) {}
+    private record ResolvedCheckoutItem(DataProduct product, int quantity, BigDecimal unitPrice, BigDecimal lineAmount) {}
 }

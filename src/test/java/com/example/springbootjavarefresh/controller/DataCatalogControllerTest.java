@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -62,6 +63,7 @@ class DataCatalogControllerTest {
                 "AAPL,NVDA",
                 null,
                 null,
+                "AAPL,NVDA | 2026-03-01 to 2026-03-01",
                 true,
                 null,
                 List.of()
@@ -89,6 +91,7 @@ class DataCatalogControllerTest {
                 "AAPL",
                 null,
                 null,
+                "AAPL | 2026-03-01 to 2026-03-31",
                 true,
                 null,
                 List.of()
@@ -186,6 +189,40 @@ class DataCatalogControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(15L))
                 .andExpect(jsonPath("$.code").value("OPTIONS-PRO"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void shouldUpdateProduct() throws Exception {
+        DataProduct product = new DataProduct();
+        product.setId(15L);
+        product.setCode("OPTIONS-PRO");
+        product.setPrice(new BigDecimal("99.99"));
+        when(dataCatalogService.updateProduct(eq(15L), any())).thenReturn(product);
+
+        mockMvc.perform(put("/api/catalog/products/15")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "catalogItemId": 5,
+                                  "code": "OPTIONS-PRO",
+                                  "name": "Options Pro",
+                                  "description": "Full options chain package",
+                                  "price": 99.99,
+                                  "minimumPrice": 79.99,
+                                  "includedSymbols": 5,
+                                  "includedDays": 30,
+                                  "pricePerAdditionalSymbol": 2.50,
+                                  "pricePerAdditionalDay": 0.75,
+                                  "fullUniverseSymbolCount": 800,
+                                  "currency": "usd",
+                                  "accessType": "SUBSCRIPTION",
+                                  "billingInterval": "MONTHLY"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(15L))
+                .andExpect(jsonPath("$.price").value(99.99));
     }
 
     @Test

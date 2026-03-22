@@ -20,11 +20,12 @@ public record CatalogItemResponse(
         String sampleSymbols,
         LocalDate coverageStartDate,
         LocalDate coverageEndDate,
+        String selectionSummary,
         Boolean active,
         LocalDateTime createdAt,
         List<DataProduct> offers
 ) {
-    public static CatalogItemResponse from(DataCatalogItem item, List<DataProduct> offers) {
+    public static CatalogItemResponse from(DataCatalogItem item, List<DataProduct> offers, String selectionSummary) {
         return new CatalogItemResponse(
                 item.getId(),
                 item.getCode(),
@@ -38,6 +39,7 @@ public record CatalogItemResponse(
                 item.getSampleSymbols(),
                 item.getCoverageStartDate(),
                 item.getCoverageEndDate(),
+                selectionSummary,
                 item.getActive(),
                 item.getCreatedAt(),
                 offers

@@ -1,5 +1,6 @@
 package com.example.springbootjavarefresh.service;
 
+import com.example.springbootjavarefresh.dto.AdminUpdateUserRequest;
 import com.example.springbootjavarefresh.dto.CreateUserRequest;
 import com.example.springbootjavarefresh.dto.UpdateUserProfileRequest;
 import com.example.springbootjavarefresh.entity.AuthProvider;
@@ -107,6 +108,40 @@ public class UserService {
         user.setCompany(request.getCompany());
         user.setCountry(request.getCountry());
         user.setPhoneNumber(request.getPhoneNumber());
+        return userRepository.save(user);
+    }
+
+    public User updateUserAdmin(Long userId, AdminUpdateUserRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found for id: " + userId));
+
+        userRepository.findByEmail(request.getEmail())
+                .filter((existing) -> !existing.getId().equals(userId))
+                .ifPresent((existing) -> {
+                    throw new IllegalArgumentException("User already exists for email: " + request.getEmail());
+                });
+
+        user.setEmail(request.getEmail());
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setCompany(request.getCompany());
+        user.setCountry(request.getCountry());
+        user.setPhoneNumber(request.getPhoneNumber());
+        user.setRole(request.getRole());
+        user.setEmailVerified(request.getEmailVerified());
+        if (Boolean.TRUE.equals(request.getEmailVerified()) && user.getEmailVerifiedAt() == null) {
+            user.setEmailVerifiedAt(java.time.LocalDateTime.now());
+        }
+        if (Boolean.FALSE.equals(request.getEmailVerified())) {
+            user.setEmailVerifiedAt(null);
+        }
+        return userRepository.save(user);
+    }
+
+    public User updateUserRole(Long userId, com.example.springbootjavarefresh.entity.UserRole role) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found for id: " + userId));
+        user.setRole(role);
         return userRepository.save(user);
     }
 }

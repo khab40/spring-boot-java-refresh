@@ -51,12 +51,24 @@ type AdminProductForm = {
   name: string;
   description: string;
   price: string;
+  minimumPrice: string;
+  includedSymbols: string;
+  includedDays: string;
+  pricePerAdditionalSymbol: string;
+  pricePerAdditionalDay: string;
+  fullUniverseSymbolCount: string;
   currency: string;
   accessType: "ONE_TIME_PURCHASE" | "SUBSCRIPTION";
   billingInterval: "ONE_TIME" | "MONTHLY" | "YEARLY";
   batchDownloadLimitMb: string;
   realtimeSubscriptionLimit: string;
   maxRealtimePayloadKb: string;
+};
+
+type CatalogSelectionPayload = {
+  symbol: string | null;
+  availableFrom: string | null;
+  availableTo: string | null;
 };
 
 type MarketDataForm = {
@@ -72,11 +84,36 @@ type CartEntry = {
   catalogItemName: string;
   product: DataProduct;
   quantity: number;
+  quotedUnitPrice: number;
+  selection: CatalogSelectionPayload;
+  selectionSummary: string;
 };
 
 type ProfileForm = {
   firstName: string;
   lastName: string;
+  company: string;
+  country: string;
+  phoneNumber: string;
+};
+
+type AdminUserForm = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  company: string;
+  country: string;
+  phoneNumber: string;
+  role: UserProfile["role"];
+  emailVerified: boolean;
+};
+
+type AdminCreateUserForm = {
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
   company: string;
   country: string;
   phoneNumber: string;
@@ -139,6 +176,12 @@ const defaultProductForm: AdminProductForm = {
   name: "",
   description: "",
   price: "49.99",
+  minimumPrice: "49.99",
+  includedSymbols: "1",
+  includedDays: "1",
+  pricePerAdditionalSymbol: "2.50",
+  pricePerAdditionalDay: "0.50",
+  fullUniverseSymbolCount: "250",
   currency: "usd",
   accessType: "ONE_TIME_PURCHASE",
   billingInterval: "ONE_TIME",
@@ -168,6 +211,28 @@ const defaultOtdQueryForm: OtdQueryForm = {
   sql: "SELECT * FROM market_data ORDER BY timestamp DESC LIMIT 100"
 };
 
+const defaultAdminUserForm: AdminUserForm = {
+  id: "",
+  email: "",
+  firstName: "",
+  lastName: "",
+  company: "",
+  country: "",
+  phoneNumber: "",
+  role: "USER",
+  emailVerified: false
+};
+
+const defaultCreateUserForm: AdminCreateUserForm = {
+  email: "",
+  firstName: "",
+  lastName: "",
+  password: "",
+  company: "",
+  country: "",
+  phoneNumber: ""
+};
+
 export function MarketDataLakeShell() {
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [authForm, setAuthForm] = useState<AuthForm>(defaultAuthForm);
@@ -181,6 +246,8 @@ export function MarketDataLakeShell() {
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [otdDeliveries, setOtdDeliveries] = useState<OtdDelivery[]>([]);
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
+  const [adminUsers, setAdminUsers] = useState<UserProfile[]>([]);
+  const [selectedAdminUserId, setSelectedAdminUserId] = useState<number | null>(null);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [cart, setCart] = useState<Record<number, CartEntry>>({});
   const [selectedAccessProductId, setSelectedAccessProductId] = useState<number | null>(null);
@@ -194,6 +261,9 @@ export function MarketDataLakeShell() {
   const [busy, setBusy] = useState(false);
   const [catalogItemForm, setCatalogItemForm] = useState<AdminCatalogItemForm>(defaultCatalogItemForm);
   const [productForm, setProductForm] = useState<AdminProductForm>(defaultProductForm);
+  const [editingProductId, setEditingProductId] = useState("0");
+  const [adminUserForm, setAdminUserForm] = useState<AdminUserForm>(defaultAdminUserForm);
+  const [createUserForm, setCreateUserForm] = useState<AdminCreateUserForm>(defaultCreateUserForm);
   const [marketDataForm, setMarketDataForm] = useState<MarketDataForm>(defaultMarketDataForm);
   const [otdQueryForm, setOtdQueryForm] = useState<OtdQueryForm>(defaultOtdQueryForm);
   const privateRequestVersion = useRef(0);
@@ -226,7 +296,7 @@ export function MarketDataLakeShell() {
   }, []);
 
   useEffect(() => {
-    void refreshPublicData(defaultCatalogFilters);
+    void refreshPublicData(defaultCatalogFilters, { retries: 3, retryDelayMs: 1200 });
   }, []);
 
   useEffect(() => {
@@ -237,6 +307,7 @@ export function MarketDataLakeShell() {
       setPayments([]);
       setOtdDeliveries([]);
       setDashboard(null);
+      setAdminUsers([]);
       saveSession(null);
       return;
     }
@@ -301,6 +372,10 @@ export function MarketDataLakeShell() {
     () => payments.find((payment) => payment.id === selectedPaymentId) ?? payments[0] ?? null,
     [payments, selectedPaymentId]
   );
+  const selectedAdminUser = useMemo(
+    () => adminUsers.find((user) => user.id === selectedAdminUserId) ?? adminUsers[0] ?? null,
+    [adminUsers, selectedAdminUserId]
+  );
   const otdEligibleOffers = useMemo(
     () => selectedCatalogItem?.offers.filter((offer) => offer.accessType === "ONE_TIME_PURCHASE") ?? [],
     [selectedCatalogItem]
@@ -315,9 +390,28 @@ export function MarketDataLakeShell() {
 
   const cartEntries = useMemo(() => Object.values(cart), [cart]);
   const cartTotal = useMemo(
-    () => cartEntries.reduce((sum, entry) => sum + Number(entry.product.price) * entry.quantity, 0),
+    () => cartEntries.reduce((sum, entry) => sum + entry.quotedUnitPrice * entry.quantity, 0),
     [cartEntries]
   );
+  const editableProducts = useMemo(
+    () =>
+      catalogItems.flatMap((item) =>
+        item.offers.map((offer) => ({
+          ...offer,
+          catalogItemLabel: item.name
+        }))
+      ),
+    [catalogItems]
+  );
+
+  useEffect(() => {
+    if (!selectedAdminUser) {
+      setAdminUserForm(defaultAdminUserForm);
+      return;
+    }
+
+    setAdminUserForm(toAdminUserForm(selectedAdminUser));
+  }, [selectedAdminUser]);
 
   useEffect(() => {
     if (!selectedCatalogItemId && catalogItems.length > 0) {
@@ -368,19 +462,32 @@ export function MarketDataLakeShell() {
     }
   }, [payments, selectedPaymentId]);
 
-  async function refreshPublicData(filters: CatalogFilters = catalogFilters) {
+  async function refreshPublicData(
+    filters: CatalogFilters = catalogFilters,
+    options: { retries?: number; retryDelayMs?: number } = {}
+  ) {
+    const retries = options.retries ?? 0;
+    const retryDelayMs = options.retryDelayMs ?? 0;
+
     try {
-      const [items, feed, runtime] = await Promise.all([
-        api.catalogItems(filters),
-        api.marketData(),
-        api.marketDataRuntime()
-      ]);
+      const items = await withRetries(() => api.catalogItems(filters), retries, retryDelayMs);
+      const [feedResult, runtimeResult] = await Promise.allSettled([api.marketData(), api.marketDataRuntime()]);
+
       setCatalogItems(items);
-      setMarketData(feed);
-      setMarketDataRuntime(runtime);
+      if (feedResult.status === "fulfilled") {
+        setMarketData(feedResult.value);
+      }
+      if (runtimeResult.status === "fulfilled") {
+        setMarketDataRuntime(runtimeResult.value);
+      }
+
+      const supplementalFailures = [feedResult, runtimeResult].filter((result) => result.status === "rejected").length;
+      setError("");
       setMessage(
         items.length > 0
-          ? `Catalog metadata is live. ${items.length} dataset${items.length === 1 ? "" : "s"} matched the current search.`
+          ? supplementalFailures > 0
+            ? `Catalog metadata is live. ${items.length} dataset${items.length === 1 ? "" : "s"} matched the current search. Supplemental runtime panels are still reconnecting.`
+            : `Catalog metadata is live. ${items.length} dataset${items.length === 1 ? "" : "s"} matched the current search.`
           : "No catalog items matched the current search."
       );
     } catch (requestError) {
@@ -443,8 +550,18 @@ export function MarketDataLakeShell() {
           return;
         }
         setDashboard(adminDashboard);
+
+        const users = await api.users(nextSession.accessToken);
+        if (privateRequestVersion.current !== requestVersion) {
+          return;
+        }
+        setAdminUsers(users);
+        if (users.length > 0 && !users.some((user) => user.id === selectedAdminUserId)) {
+          setSelectedAdminUserId(users[0].id);
+        }
       } else {
         setDashboard(null);
+        setAdminUsers([]);
       }
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -570,7 +687,10 @@ export function MarketDataLakeShell() {
         catalogItemId: owningCatalogItem.id,
         catalogItemName: owningCatalogItem.name,
         product,
-        quantity
+        quantity,
+        quotedUnitPrice: getQuotedUnitPrice(product),
+        selection: buildCatalogSelectionPayload(catalogFilters),
+        selectionSummary: product.quotedSelectionSummary || owningCatalogItem.selectionSummary || "Default catalog selection"
       }
     }));
     setQuantities((current) => ({
@@ -638,7 +758,8 @@ export function MarketDataLakeShell() {
           userId: session.userId,
           items: cartEntries.map((entry) => ({
             productId: entry.product.id,
-            quantity: entry.quantity
+            quantity: entry.quantity,
+            selection: entry.selection
           })),
           successUrl: `${origin}/?checkout=success`,
           cancelUrl: `${origin}/?checkout=cancelled`
@@ -785,7 +906,7 @@ export function MarketDataLakeShell() {
     }
   }
 
-  async function handleCreateProduct() {
+  async function handleSaveProduct() {
     if (!session?.accessToken) {
       return;
     }
@@ -793,26 +914,35 @@ export function MarketDataLakeShell() {
     setBusy(true);
     setError("");
     try {
-      await api.createProduct(
-        {
-          ...productForm,
-          catalogItemId: Number(productForm.catalogItemId),
-          price: Number(productForm.price),
-          batchDownloadLimitMb: toOptionalNumber(productForm.batchDownloadLimitMb),
-          realtimeSubscriptionLimit: toOptionalNumber(productForm.realtimeSubscriptionLimit),
-          maxRealtimePayloadKb: toOptionalNumber(productForm.maxRealtimePayloadKb)
-        },
-        session.accessToken
-      );
+      const payload = {
+        ...productForm,
+        catalogItemId: Number(productForm.catalogItemId),
+        price: Number(productForm.price),
+        minimumPrice: Number(productForm.minimumPrice),
+        includedSymbols: Number(productForm.includedSymbols),
+        includedDays: Number(productForm.includedDays),
+        pricePerAdditionalSymbol: Number(productForm.pricePerAdditionalSymbol),
+        pricePerAdditionalDay: Number(productForm.pricePerAdditionalDay),
+        fullUniverseSymbolCount: Number(productForm.fullUniverseSymbolCount),
+        batchDownloadLimitMb: toOptionalNumber(productForm.batchDownloadLimitMb),
+        realtimeSubscriptionLimit: toOptionalNumber(productForm.realtimeSubscriptionLimit),
+        maxRealtimePayloadKb: toOptionalNumber(productForm.maxRealtimePayloadKb)
+      };
+      if (editingProductId !== "0") {
+        await api.updateProduct(Number(editingProductId), payload, session.accessToken);
+      } else {
+        await api.createProduct(payload, session.accessToken);
+      }
       setProductForm((current) => ({
         ...defaultProductForm,
         catalogItemId: current.catalogItemId
       }));
+      setEditingProductId("0");
       await refreshPublicData();
       if (session.profile?.role === "ADMIN") {
         setDashboard(await api.adminDashboard(session.accessToken));
       }
-      setMessage("Sellable offer created.");
+      setMessage(editingProductId !== "0" ? "Sellable offer repriced." : "Sellable offer created.");
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -840,6 +970,90 @@ export function MarketDataLakeShell() {
       setMarketDataForm(defaultMarketDataForm);
       await refreshPublicData();
       setMessage("Preview market-data row published into the stub runtime.");
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAdminUserSave() {
+    if (!session?.accessToken || !adminUserForm.id) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const updatedUser = await api.updateUser(
+        Number(adminUserForm.id),
+        {
+          email: adminUserForm.email.trim(),
+          firstName: adminUserForm.firstName.trim(),
+          lastName: adminUserForm.lastName.trim(),
+          company: adminUserForm.company.trim() || null,
+          country: adminUserForm.country.trim() || null,
+          phoneNumber: adminUserForm.phoneNumber.trim() || null,
+          role: adminUserForm.role,
+          emailVerified: adminUserForm.emailVerified
+        },
+        session.accessToken
+      );
+      setAdminUsers((current) => current.map((user) => (user.id === updatedUser.id ? updatedUser : user)));
+      setMessage(`User ${updatedUser.email} updated.`);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAdminRoleQuickChange(role: UserProfile["role"]) {
+    if (!session?.accessToken || !selectedAdminUser) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const updatedUser = await api.updateUserRole(selectedAdminUser.id, role, session.accessToken);
+      setAdminUsers((current) => current.map((user) => (user.id === updatedUser.id ? updatedUser : user)));
+      setSelectedAdminUserId(updatedUser.id);
+      setMessage(`Role updated for ${updatedUser.email}.`);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAdminCreateUser() {
+    if (!session?.accessToken) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const createdUser = await api.createUserAdmin(
+        {
+          email: createUserForm.email.trim(),
+          firstName: createUserForm.firstName.trim(),
+          lastName: createUserForm.lastName.trim(),
+          password: createUserForm.password,
+          company: createUserForm.company.trim() || null,
+          country: createUserForm.country.trim() || null,
+          phoneNumber: createUserForm.phoneNumber.trim() || null
+        },
+        session.accessToken
+      );
+      setAdminUsers((current) => [createdUser, ...current]);
+      setSelectedAdminUserId(createdUser.id);
+      setCreateUserForm(defaultCreateUserForm);
+      if (session.profile?.role === "ADMIN") {
+        setDashboard(await api.adminDashboard(session.accessToken));
+      }
+      setMessage(`User ${createdUser.email} created.`);
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -1065,15 +1279,16 @@ export function MarketDataLakeShell() {
           </div>
           {cartEntries.length > 0 ? (
             <div className="activity-list compact-activity-list">
-              {cartEntries.map((entry) => (
-                <div className="activity-card compact-card" key={entry.product.id}>
+                {cartEntries.map((entry) => (
+                  <div className="activity-card compact-card" key={entry.product.id}>
                   <div className="compact-card-header">
                     <strong>{entry.product.name}</strong>
-                    <span className="pill">{formatMoney(Number(entry.product.price) * entry.quantity, entry.product.currency)}</span>
+                    <span className="pill">{formatMoney(entry.quotedUnitPrice * entry.quantity, entry.product.currency)}</span>
                   </div>
                   <div className="meta-list compact-meta">
                     <span>{entry.catalogItemName}</span>
                     <span>{describeProductMode(entry.product)}</span>
+                    <span>{entry.selectionSummary}</span>
                   </div>
                   <div className="inline-form-row">
                     <Field
@@ -1229,7 +1444,8 @@ export function MarketDataLakeShell() {
                   {item.marketDataType} · {describeStorage(item.storageSystem)}
                 </span>
                 <span className="catalog-list-tertiary">
-                  {item.offers.length} linked offer{item.offers.length === 1 ? "" : "s"}
+                  {item.offers.length} linked offer{item.offers.length === 1 ? "" : "s"} ·{" "}
+                  {item.offers[0]?.quotedPrice != null ? formatMoney(item.offers[0].quotedPrice, item.offers[0].currency) : "No quote"}
                 </span>
               </button>
             ))}
@@ -1263,6 +1479,7 @@ export function MarketDataLakeShell() {
                 <div className="meta-list">
                   <span>{selectedCatalogItem.summary || "No summary provided."}</span>
                   <span>{selectedCatalogItem.description || "No detailed description provided."}</span>
+                  <span>Selected dataset definition: {selectedCatalogItem.selectionSummary || "Default catalog selection"}</span>
                   <span>Delivery API: {selectedCatalogItem.deliveryApiPath || "Not assigned"}</span>
                   <span>Lake query reference: {selectedCatalogItem.lakeQueryReference || "Not assigned"}</span>
                   <span>Sample symbols: {selectedCatalogItem.sampleSymbols || "Not assigned"}</span>
@@ -1537,8 +1754,19 @@ export function MarketDataLakeShell() {
             </div>
 
             <div className="panel">
-              <h3>Create sellable offer</h3>
+              <h3>Manage sellable offer</h3>
               <div className="form-grid">
+                <SelectField
+                  label="Offer editor"
+                  value={editingProductId}
+                  onChange={(value) => {
+                    setEditingProductId(value);
+                    const selectedProduct = editableProducts.find((product) => String(product.id) === value);
+                    setProductForm(selectedProduct ? toAdminProductForm(selectedProduct) : defaultProductForm);
+                  }}
+                  options={["0:Create new offer", ...editableProducts.map((product) => `${product.id}:${product.name} (${product.catalogItemLabel})`)]}
+                  optionValueMode="split-id"
+                />
                 <SelectField
                   label="Catalog item"
                   value={productForm.catalogItemId}
@@ -1552,8 +1780,30 @@ export function MarketDataLakeShell() {
                 </div>
                 <Field label="Description" value={productForm.description} onChange={(value) => setProductForm({ ...productForm, description: value })} textarea />
                 <div className="form-row">
-                  <Field label="Price" value={productForm.price} onChange={(value) => setProductForm({ ...productForm, price: value })} />
+                  <Field label="Base price" value={productForm.price} onChange={(value) => setProductForm({ ...productForm, price: value })} />
+                  <Field label="Minimum price" value={productForm.minimumPrice} onChange={(value) => setProductForm({ ...productForm, minimumPrice: value })} />
                   <Field label="Currency" value={productForm.currency} onChange={(value) => setProductForm({ ...productForm, currency: value })} />
+                </div>
+                <div className="form-row">
+                  <Field label="Included symbols" value={productForm.includedSymbols} onChange={(value) => setProductForm({ ...productForm, includedSymbols: value })} />
+                  <Field label="Included days" value={productForm.includedDays} onChange={(value) => setProductForm({ ...productForm, includedDays: value })} />
+                  <Field
+                    label="Universe symbols"
+                    value={productForm.fullUniverseSymbolCount}
+                    onChange={(value) => setProductForm({ ...productForm, fullUniverseSymbolCount: value })}
+                  />
+                </div>
+                <div className="form-row">
+                  <Field
+                    label="Price per extra symbol"
+                    value={productForm.pricePerAdditionalSymbol}
+                    onChange={(value) => setProductForm({ ...productForm, pricePerAdditionalSymbol: value })}
+                  />
+                  <Field
+                    label="Price per extra day"
+                    value={productForm.pricePerAdditionalDay}
+                    onChange={(value) => setProductForm({ ...productForm, pricePerAdditionalDay: value })}
+                  />
                 </div>
                 <div className="form-row">
                   <SelectField
@@ -1593,9 +1843,23 @@ export function MarketDataLakeShell() {
                   value={productForm.maxRealtimePayloadKb}
                   onChange={(value) => setProductForm({ ...productForm, maxRealtimePayloadKb: value })}
                 />
-                <button className="button" onClick={handleCreateProduct} disabled={busy || !productForm.catalogItemId}>
-                  Publish offer
-                </button>
+                <div className="actions">
+                  <button className="button" onClick={handleSaveProduct} disabled={busy || !productForm.catalogItemId}>
+                    {editingProductId === "0" ? "Publish offer" : "Update offer pricing"}
+                  </button>
+                  {editingProductId !== "0" ? (
+                    <button
+                      className="ghost-button"
+                      onClick={() => {
+                        setEditingProductId("0");
+                        setProductForm(defaultProductForm);
+                      }}
+                      disabled={busy}
+                    >
+                      Reset editor
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
@@ -1626,6 +1890,130 @@ export function MarketDataLakeShell() {
                 <button className="button" onClick={handleCreateMarketData} disabled={busy}>
                   Save preview row
                 </button>
+              </div>
+            </div>
+
+            <div className="panel">
+              <div className="section-header">
+                <div>
+                  <h3>User management</h3>
+                  <div className="helper">Edit user profile fields, promote or demote roles, and create local users.</div>
+                </div>
+              </div>
+              <div className="split-panel">
+                <div className="catalog-list compact-list">
+                  {adminUsers.map((user) => (
+                    <button
+                      key={user.id}
+                      className={`catalog-list-item ${selectedAdminUser?.id === user.id ? "catalog-list-item-active" : ""}`}
+                      onClick={() => setSelectedAdminUserId(user.id)}
+                    >
+                      <span className="catalog-list-title">{user.email}</span>
+                      <span className="helper">
+                        {user.firstName} {user.lastName}
+                      </span>
+                      <span className="helper">
+                        {user.role} · {user.emailVerified ? "Verified" : "Unverified"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="form-grid">
+                  {selectedAdminUser ? (
+                    <>
+                      <div className="pill-row">
+                        <span className="pill">#{selectedAdminUser.id}</span>
+                        <span className="pill">{selectedAdminUser.authProvider}</span>
+                        <span className="pill">{selectedAdminUser.role}</span>
+                      </div>
+                      <Field label="Email" value={adminUserForm.email} onChange={(value) => setAdminUserForm({ ...adminUserForm, email: value })} />
+                      <div className="form-row">
+                        <Field
+                          label="First name"
+                          value={adminUserForm.firstName}
+                          onChange={(value) => setAdminUserForm({ ...adminUserForm, firstName: value })}
+                        />
+                        <Field
+                          label="Last name"
+                          value={adminUserForm.lastName}
+                          onChange={(value) => setAdminUserForm({ ...adminUserForm, lastName: value })}
+                        />
+                      </div>
+                      <div className="form-row">
+                        <Field label="Company" value={adminUserForm.company} onChange={(value) => setAdminUserForm({ ...adminUserForm, company: value })} />
+                        <Field label="Country" value={adminUserForm.country} onChange={(value) => setAdminUserForm({ ...adminUserForm, country: value })} />
+                      </div>
+                      <Field
+                        label="Phone number"
+                        value={adminUserForm.phoneNumber}
+                        onChange={(value) => setAdminUserForm({ ...adminUserForm, phoneNumber: value })}
+                      />
+                      <div className="form-row">
+                        <SelectField
+                          label="Role"
+                          value={adminUserForm.role}
+                          onChange={(value) => setAdminUserForm({ ...adminUserForm, role: value as UserProfile["role"] })}
+                          options={["USER", "ADMIN"]}
+                        />
+                        <SelectField
+                          label="Email status"
+                          value={adminUserForm.emailVerified ? "VERIFIED" : "UNVERIFIED"}
+                          onChange={(value) => setAdminUserForm({ ...adminUserForm, emailVerified: value === "VERIFIED" })}
+                          options={["VERIFIED", "UNVERIFIED"]}
+                        />
+                      </div>
+                      <div className="actions">
+                        <button className="button" onClick={handleAdminUserSave} disabled={busy}>
+                          Save user
+                        </button>
+                        <button className="ghost-button" onClick={() => void handleAdminRoleQuickChange("ADMIN")} disabled={busy}>
+                          Promote to admin
+                        </button>
+                        <button className="ghost-button" onClick={() => void handleAdminRoleQuickChange("USER")} disabled={busy}>
+                          Set as user
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="helper">No users available yet.</div>
+                  )}
+                </div>
+              </div>
+              <div className="card compact-card mt-3">
+                <strong>Create local user</strong>
+                <div className="form-grid">
+                  <Field label="Email" value={createUserForm.email} onChange={(value) => setCreateUserForm({ ...createUserForm, email: value })} />
+                  <div className="form-row">
+                    <Field
+                      label="First name"
+                      value={createUserForm.firstName}
+                      onChange={(value) => setCreateUserForm({ ...createUserForm, firstName: value })}
+                    />
+                    <Field
+                      label="Last name"
+                      value={createUserForm.lastName}
+                      onChange={(value) => setCreateUserForm({ ...createUserForm, lastName: value })}
+                    />
+                  </div>
+                  <Field
+                    label="Password"
+                    value={createUserForm.password}
+                    onChange={(value) => setCreateUserForm({ ...createUserForm, password: value })}
+                    type="password"
+                  />
+                  <div className="form-row">
+                    <Field label="Company" value={createUserForm.company} onChange={(value) => setCreateUserForm({ ...createUserForm, company: value })} />
+                    <Field label="Country" value={createUserForm.country} onChange={(value) => setCreateUserForm({ ...createUserForm, country: value })} />
+                  </div>
+                  <Field
+                    label="Phone number"
+                    value={createUserForm.phoneNumber}
+                    onChange={(value) => setCreateUserForm({ ...createUserForm, phoneNumber: value })}
+                  />
+                  <button className="button" onClick={handleAdminCreateUser} disabled={busy}>
+                    Create user
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1728,6 +2116,80 @@ function getErrorMessage(error: unknown) {
     return error.message;
   }
   return "Unexpected request failure.";
+}
+
+async function withRetries<T>(operation: () => Promise<T>, retries: number, retryDelayMs: number) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt === retries) {
+        break;
+      }
+      if (retryDelayMs > 0) {
+        await delay(retryDelayMs);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function getQuotedUnitPrice(product: DataProduct) {
+  return Number(product.quotedPrice ?? product.price);
+}
+
+function buildCatalogSelectionPayload(filters: CatalogFilters): CatalogSelectionPayload {
+  return {
+    symbol: filters.symbol.trim() || null,
+    availableFrom: filters.availableFrom || null,
+    availableTo: filters.availableTo || null
+  };
+}
+
+function toAdminProductForm(product: DataProduct): AdminProductForm {
+  return {
+    catalogItemId: String(product.catalogItemId ?? ""),
+    code: product.code,
+    name: product.name,
+    description: product.description || "",
+    price: String(product.price ?? ""),
+    minimumPrice: String(product.minimumPrice ?? product.price ?? ""),
+    includedSymbols: String(product.includedSymbols ?? 1),
+    includedDays: String(product.includedDays ?? 1),
+    pricePerAdditionalSymbol: String(product.pricePerAdditionalSymbol ?? 0),
+    pricePerAdditionalDay: String(product.pricePerAdditionalDay ?? 0),
+    fullUniverseSymbolCount: String(product.fullUniverseSymbolCount ?? product.includedSymbols ?? 1),
+    currency: product.currency,
+    accessType: product.accessType,
+    billingInterval: product.billingInterval,
+    batchDownloadLimitMb: product.batchDownloadLimitMb == null ? "" : String(product.batchDownloadLimitMb),
+    realtimeSubscriptionLimit: product.realtimeSubscriptionLimit == null ? "" : String(product.realtimeSubscriptionLimit),
+    maxRealtimePayloadKb: product.maxRealtimePayloadKb == null ? "" : String(product.maxRealtimePayloadKb)
+  };
+}
+
+function toAdminUserForm(user: UserProfile): AdminUserForm {
+  return {
+    id: String(user.id),
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    company: user.company || "",
+    country: user.country || "",
+    phoneNumber: user.phoneNumber || "",
+    role: user.role,
+    emailVerified: user.emailVerified
+  };
 }
 
 function toOptionalNumber(value: string) {

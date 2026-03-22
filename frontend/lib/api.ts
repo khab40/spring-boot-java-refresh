@@ -95,6 +95,12 @@ export const api = {
   googleLoginUrl: () => `${API_BASE_URL}/oauth2/authorization/google`,
   me: (token: string) => request<UserProfile>("/api/auth/me", undefined, token),
   updateMe: (payload: UpdateUserProfilePayload, token: string) => send<UserProfile>("/api/auth/me", "PUT", payload, token),
+  users: (token: string) => request<UserProfile[]>("/api/users", undefined, token),
+  updateUser: (userId: number, payload: Record<string, unknown>, token: string) =>
+    send<UserProfile>(`/api/users/${userId}`, "PUT", payload, token),
+  updateUserRole: (userId: number, role: string, token: string) =>
+    request<UserProfile>(`/api/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) }, token),
+  createUserAdmin: (payload: Record<string, unknown>, token: string) => send<UserProfile>("/api/users", "POST", payload, token),
   myEntitlements: (token: string) => request<Entitlement[]>("/api/auth/me/entitlements", undefined, token),
   myPayments: (token: string) => request<PaymentTransaction[]>("/api/auth/me/payments", undefined, token),
   myOtdDeliveries: (token: string) => request<OtdDelivery[]>("/api/market-data/otd-deliveries/mine", undefined, token),
@@ -115,6 +121,8 @@ export const api = {
     send<CatalogItem>("/api/catalog/items", "POST", payload, token),
   createProduct: (payload: Record<string, unknown>, token: string) =>
     send<DataProduct>("/api/catalog/products", "POST", payload, token),
+  updateProduct: (productId: number, payload: Record<string, unknown>, token: string) =>
+    send<DataProduct>(`/api/catalog/products/${productId}`, "PUT", payload, token),
   createMarketData: (payload: Record<string, unknown>, token: string) =>
     send<MarketData>("/api/market-data", "POST", payload, token)
 };

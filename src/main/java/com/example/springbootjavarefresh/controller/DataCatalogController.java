@@ -119,6 +119,13 @@ public class DataCatalogController {
         return ResponseEntity.ok(dataCatalogService.createProduct(request));
     }
 
+    @PutMapping("/products/{id}")
+    @Operation(summary = "Update a sellable catalog offer")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<DataProduct> updateProduct(@PathVariable Long id, @Valid @RequestBody CreateDataProductRequest request) {
+        return ResponseEntity.ok(dataCatalogService.updateProduct(id, request));
+    }
+
     private boolean isPresent(String value) {
         return value != null && !value.isBlank();
     }
