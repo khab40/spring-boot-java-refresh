@@ -1,12 +1,14 @@
 import type { NextConfig } from "next";
 
+const internalApiBaseUrl = process.env.INTERNAL_API_BASE_URL ?? "http://localhost:8080";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   async rewrites() {
     return [
       {
         source: "/backend/:path*",
-        destination: "http://app:8080/:path*"
+        destination: `${internalApiBaseUrl}/:path*`
       }
     ];
   }

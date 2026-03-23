@@ -5,6 +5,10 @@ RUN npm ci
 
 FROM node:22-alpine AS builder
 WORKDIR /app
+ARG INTERNAL_API_BASE_URL=http://app:8080
+ENV INTERNAL_API_BASE_URL=${INTERNAL_API_BASE_URL}
+ARG NEXT_PUBLIC_AUTH_BASE_URL=http://localhost:8080
+ENV NEXT_PUBLIC_AUTH_BASE_URL=${NEXT_PUBLIC_AUTH_BASE_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -14,6 +18,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ENV INTERNAL_API_BASE_URL=http://app:8080
+ENV NEXT_PUBLIC_AUTH_BASE_URL=http://localhost:8080
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public

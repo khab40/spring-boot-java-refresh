@@ -6,22 +6,28 @@ import com.example.springbootjavarefresh.dto.CreateUserRequest;
 import com.example.springbootjavarefresh.dto.EmailRequest;
 import com.example.springbootjavarefresh.dto.EmailVerificationResponse;
 import com.example.springbootjavarefresh.dto.MessageResponse;
+import com.example.springbootjavarefresh.dto.PaymentTransactionResponse;
 import com.example.springbootjavarefresh.dto.UpdateUserProfileRequest;
+import com.example.springbootjavarefresh.dto.UserEntitlementResponse;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
-import com.example.springbootjavarefresh.entity.PaymentTransaction;
 import com.example.springbootjavarefresh.entity.User;
-import com.example.springbootjavarefresh.entity.UserEntitlement;
 import com.example.springbootjavarefresh.service.AuthService;
 import com.example.springbootjavarefresh.service.PaymentService;
 import com.example.springbootjavarefresh.service.UserEntitlementService;
 import com.example.springbootjavarefresh.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.core.OAuth2AuthenticatedPrincipal;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -89,27 +95,44 @@ public class AuthController {
 
     @GetMapping("/me/entitlements")
     @Operation(summary = "Get the currently authenticated user's entitlements")
-    public ResponseEntity<List<UserEntitlement>> myEntitlements(Authentication authentication) {
+    public ResponseEntity<List<UserEntitlementResponse>> myEntitlements(Authentication authentication) {
         User user = resolveAuthenticatedUser(authentication);
-        return ResponseEntity.ok(userEntitlementService.getEntitlementsByUserId(user.getId()));
+        return ResponseEntity.ok(userEntitlementService.getEntitlementsByUserId(user.getId()).stream()
+                .map(UserEntitlementResponse::fromEntitlement)
+                .toList());
     }
 
     @GetMapping("/me/payments")
     @Operation(summary = "Get the currently authenticated user's payments")
-    public ResponseEntity<List<PaymentTransaction>> myPayments(Authentication authentication) {
+    public ResponseEntity<List<PaymentTransactionResponse>> myPayments(Authentication authentication) {
         User user = resolveAuthenticatedUser(authentication);
-        return ResponseEntity.ok(paymentService.getTransactionsByUserId(user.getId()));
+        return ResponseEntity.ok(paymentService.getTransactionsByUserId(user.getId()).stream()
+                .map(PaymentTransactionResponse::fromTransaction)
+                .toList());
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "Log out the current session on the client")
-    public ResponseEntity<Void> logout() {
+    @Operation(summary = "Log out the current session on the client and invalidate any server-side OAuth session")
+    public ResponseEntity<Void> logout(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Authentication authentication) {
+        new SecurityContextLogoutHandler().logout(request, response, authentication);
+        expireCookie(response, "JSESSIONID");
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    private void expireCookie(HttpServletResponse response, String name) {
+        Cookie cookie = new Cookie(name, "");
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
     }
 
     private User resolveAuthenticatedUser(Authentication authentication) {
         if (authentication == null) {
-            throw new IllegalStateException("No authenticated user found");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user found");
         }
 
         Object principal = authentication.getPrincipal();
@@ -119,9 +142,23 @@ public class AuthController {
 
         if (principal instanceof UserDetails userDetails) {
             return userService.getUserByEmail(userDetails.getUsername())
-                    .orElseThrow(() -> new IllegalStateException("Authenticated user not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
         }
 
-        throw new IllegalStateException("Unsupported authenticated principal");
+        if (principal instanceof OAuth2AuthenticatedPrincipal oauth2Principal) {
+            String email = oauth2Principal.getAttribute("email");
+            if (email != null && !email.isBlank()) {
+                return userService.getUserByEmail(email)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
+            }
+        }
+
+        String principalName = authentication.getName();
+        if (principalName != null && !principalName.isBlank() && !"anonymousUser".equals(principalName)) {
+            return userService.getUserByEmail(principalName)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
+        }
+
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user found");
     }
 }

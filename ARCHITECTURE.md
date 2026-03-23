@@ -101,6 +101,8 @@ The current deployment model is simple:
 - H2 for transactional local, test, and containerized execution
 - MinIO-backed object storage for generated Parquet delivery files
 - Docker-based scripts for build, test, run, logs, and shutdown
+- Native host-run scripts for faster backend and frontend iteration without rebuilding containers
+- A Render blueprint for lightweight preview deployment of the backend and web UI
 
 There is currently no Kubernetes cluster, service mesh, dedicated ingress tier, or multi-service networking topology in this repository.
 

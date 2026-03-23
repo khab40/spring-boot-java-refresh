@@ -70,6 +70,7 @@ class AuthServiceTest {
         assertNull(response.accessToken());
         assertNull(response.apiKey());
         assertEquals(false, response.emailVerified());
+        assertEquals("auth@example.com", response.profile().email());
     }
 
     @Test
@@ -92,6 +93,7 @@ class AuthServiceTest {
 
         assertEquals("jwt-token", response.accessToken());
         assertEquals("mdr_key", response.apiKey());
+        assertEquals("auth@example.com", response.profile().email());
     }
 
     @Test
@@ -129,6 +131,31 @@ class AuthServiceTest {
         IllegalStateException exception = assertThrows(IllegalStateException.class, () -> authService.login(request));
 
         assertEquals("This account uses Google sign-in. Continue with Google.", exception.getMessage());
+    }
+
+    @Test
+    void shouldAllowPasswordLoginForGoogleLinkedAccountWhenPasswordExists() {
+        AuthLoginRequest request = new AuthLoginRequest();
+        request.setEmail("auth@example.com");
+        request.setPassword("super-secret");
+
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("auth@example.com");
+        user.setAuthProvider(AuthProvider.GOOGLE);
+        user.setPasswordHash("$2a$10$existing-hash");
+        user.setEmailVerified(Boolean.TRUE);
+
+        when(userService.getUserByEmail("auth@example.com")).thenReturn(java.util.Optional.of(user));
+        when(jwtService.generateToken(user)).thenReturn("jwt-token");
+        when(apiKeysService.issueKeyForUser(user))
+                .thenReturn(new ApiKeyIssueResponse(1L, "auth@example.com", "mdr_key", "mdr_key", null, null));
+
+        var response = authService.login(request);
+
+        assertEquals("jwt-token", response.accessToken());
+        assertEquals("mdr_key", response.apiKey());
+        assertEquals("auth@example.com", response.profile().email());
     }
 
     @Test
@@ -190,5 +217,6 @@ class AuthServiceTest {
         assertEquals("jwt-token", response.accessToken());
         assertEquals("mdr_key", response.apiKey());
         assertEquals(true, response.emailVerified());
+        assertEquals("google@example.com", response.profile().email());
     }
 }

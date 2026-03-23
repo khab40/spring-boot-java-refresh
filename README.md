@@ -59,14 +59,16 @@ Market Data Lake is a full-stack market data platform for catalog-driven data di
 ### Local Development
 
 1. Clone the repository
-2. Run `mvn clean install` to build the backend
-3. Run `mvn spring-boot:run` to start the Spring Boot API
-4. In a separate shell, start the web UI from `frontend/` with your preferred Next.js workflow if you want non-Docker local UI development
-5. Run `mvn test` to execute backend unit tests
+2. Run `./scripts/local-build.sh` to build the backend jar and frontend bundle with host tooling
+3. Run `./scripts/local-run.sh` to start the Spring Boot API and Next.js UI without containerizing the app itself
+4. Run `./scripts/local-test.sh` to execute backend and frontend tests with host tooling
+5. Run `./scripts/local-shutdown.sh` to stop the local backend and frontend processes
 
 Local backend execution uses:
 - H2 for transactional application state
 - an in-memory preview stub for market-data responses
+
+The native local scripts are the fastest backend and UI feedback loop. By default they can still start lightweight `fss` and `mailpit` support containers so OTD delivery and email flows remain testable.
 
 For full-stack local runtime with the UI, Mailpit, Airflow, Prometheus, and Grafana included, prefer the Docker workflow below.
 
@@ -498,6 +500,10 @@ Or use the helper scripts in `scripts/`:
 ./scripts/logs.sh app
 ./scripts/airflow-cli.sh dags list
 ./scripts/shutdown.sh
+./scripts/local-build.sh
+./scripts/local-run.sh
+./scripts/local-test.sh
+./scripts/local-shutdown.sh
 ```
 
 Verified workflow:
@@ -507,8 +513,39 @@ Verified workflow:
 - `./scripts/logs.sh app` tails container logs
 - `./scripts/airflow-cli.sh <args>` runs Airflow CLI commands inside the Airflow container
 - `./scripts/shutdown.sh` stops and removes the stack
+- `./scripts/local-build.sh` builds the backend jar and frontend bundle natively on the host
+- `./scripts/local-run.sh` runs the backend on `http://localhost:8080` and the UI on `http://localhost:3000`
+- `./scripts/local-test.sh` runs backend and frontend tests natively on the host
+- `./scripts/local-shutdown.sh` stops the host-run backend and frontend processes
+
+Native local workflow notes:
+- `./scripts/local-run.sh` keeps browser requests same-origin through `/backend`
+- the local Next.js server proxies `/backend/*` to `http://localhost:8080`
+- Google OAuth login starts directly from `http://localhost:8080` so the backend keeps the OAuth session cookie on the callback origin
+- `MDL_LOCAL_SUPPORT=true` starts only `fss` and `mailpit` in Docker for support services
+- `MDL_LOCAL_SUPPORT=false` skips even those optional support containers
 
 The Docker image builds with Maven in a build stage and runs on Java 21 JRE in the final stage.
+
+## Render Preview Deployment
+
+The repository now includes [render.yaml](./render.yaml) for a lightweight two-service preview deployment:
+- `market-data-lake-api` for the Spring Boot backend
+- `market-data-lake-ui` for the Next.js frontend
+
+Recommended preview-mode settings:
+- keep `MARKETDATA_STUB_ENABLED=true`
+- set `APP_FRONTEND_ORIGIN` to the public UI origin
+- set `APP_AUTH_OAUTH2_SUCCESS_URL` to `https://<ui-host>/oauth/callback`
+- set `APP_AUTH_OAUTH2_FAILURE_URL` to `https://<ui-host>/?authError=google-signin-failed`
+- set `APP_AUTH_GOOGLE_REDIRECT_URI` to `https://<api-host>/login/oauth2/code/google`
+- set `NEXT_PUBLIC_AUTH_BASE_URL` on the UI service to the public backend URL
+- set `INTERNAL_API_BASE_URL` on the UI service to the public backend URL
+
+Preview deployment limitations on free tiers:
+- H2 remains ephemeral unless the platform provides persistent disk
+- OTD Parquet delivery still requires a reachable S3-compatible endpoint and bucket
+- Mailpit and Airflow stay local-development services rather than part of the preview blueprint
 
 ## Contributing
 

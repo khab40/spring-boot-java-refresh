@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { buildSession } from "../../../lib/api";
 import { saveSession } from "../../../lib/storage";
-import { AuthResponse } from "../../../lib/types";
+import { AuthResponse, SessionState, UserProfile } from "../../../lib/types";
 
 export default function OAuthCallbackPage() {
   const router = useRouter();
@@ -18,11 +18,21 @@ export default function OAuthCallbackPage() {
       const apiKey = params.get("apiKey");
       const userId = params.get("userId");
       const email = params.get("email");
+      const profileParam = params.get("profile");
       const message = params.get("message") ?? "Signed in with Google successfully.";
 
       if (!accessToken || !apiKey || !userId || !email) {
         router.replace("/?authError=google-signin-missing-session");
         return;
+      }
+
+      let profile: UserProfile | null = null;
+      if (profileParam) {
+        try {
+          profile = JSON.parse(profileParam) as UserProfile;
+        } catch {
+          profile = null;
+        }
       }
 
       const auth: AuthResponse = {
@@ -32,17 +42,25 @@ export default function OAuthCallbackPage() {
         apiKey,
         tokenType: "Bearer",
         emailVerified: true,
-        message
+        message,
+        profile
       };
 
       try {
         const session = await buildSession(auth);
         saveSession(session);
-        router.replace("/?authSuccess=google");
       } catch {
-        saveSession(null);
-        router.replace("/?authError=google-signin-session-build-failed");
+        const fallbackSession: SessionState = {
+          accessToken,
+          apiKey,
+          userId: Number(userId),
+          email,
+          profile: null
+        };
+        saveSession(fallbackSession);
       }
+
+      router.replace(`/?authSuccess=google&message=${encodeURIComponent(message)}`);
     }
 
     void completeLogin();

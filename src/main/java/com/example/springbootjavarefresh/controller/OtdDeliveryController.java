@@ -9,9 +9,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.core.OAuth2AuthenticatedPrincipal;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,7 +56,7 @@ public class OtdDeliveryController {
 
     private User resolveAuthenticatedUser(Authentication authentication) {
         if (authentication == null) {
-            throw new IllegalStateException("No authenticated user found");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user found");
         }
 
         Object principal = authentication.getPrincipal();
@@ -62,8 +65,23 @@ public class OtdDeliveryController {
         }
         if (principal instanceof UserDetails userDetails) {
             return userService.getUserByEmail(userDetails.getUsername())
-                    .orElseThrow(() -> new IllegalStateException("Authenticated user not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
         }
-        throw new IllegalStateException("Unsupported authenticated principal");
+
+        if (principal instanceof OAuth2AuthenticatedPrincipal oauth2Principal) {
+            String email = oauth2Principal.getAttribute("email");
+            if (email != null && !email.isBlank()) {
+                return userService.getUserByEmail(email)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
+            }
+        }
+
+        String principalName = authentication.getName();
+        if (principalName != null && !principalName.isBlank() && !"anonymousUser".equals(principalName)) {
+            return userService.getUserByEmail(principalName)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
+        }
+
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user found");
     }
 }

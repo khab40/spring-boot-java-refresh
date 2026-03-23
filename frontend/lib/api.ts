@@ -16,6 +16,7 @@ import {
 } from "./types";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/backend";
+export const AUTH_BASE_URL = process.env.NEXT_PUBLIC_AUTH_BASE_URL ?? "http://localhost:8080";
 
 type HttpMethod = "GET" | "POST" | "PUT";
 
@@ -67,6 +68,23 @@ function send<T>(path: string, method: HttpMethod, body?: unknown, token?: strin
   );
 }
 
+async function logoutBrowserSession(token?: string) {
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  await fetch(`${AUTH_BASE_URL}/api/auth/logout`, {
+    method: "POST",
+    headers,
+    body: "{}",
+    cache: "no-store",
+    credentials: "include",
+    mode: "cors"
+  });
+}
+
 function toQueryString(filters: CatalogFilters) {
   const params = new URLSearchParams({ activeOnly: "true" });
   if (filters.symbol.trim() && filters.symbol.trim() !== "*") {
@@ -96,8 +114,8 @@ function toQueryString(filters: CatalogFilters) {
 export const api = {
   register: (payload: Record<string, unknown>) => send<AuthResponse>("/api/auth/register", "POST", payload),
   login: (payload: Record<string, unknown>) => send<AuthResponse>("/api/auth/login", "POST", payload),
-  logout: (token: string) => send<void>("/api/auth/logout", "POST", {}, token),
-  googleLoginUrl: () => `${API_BASE_URL}/oauth2/authorization/google`,
+  logout: (token: string) => logoutBrowserSession(token),
+  googleLoginUrl: () => `${AUTH_BASE_URL}/oauth2/authorization/google`,
   me: (token: string) => request<UserProfile>("/api/auth/me", undefined, token),
   updateMe: (payload: UpdateUserProfilePayload, token: string) => send<UserProfile>("/api/auth/me", "PUT", payload, token),
   users: (token: string) => request<UserProfile[]>("/api/users", undefined, token),
@@ -139,7 +157,7 @@ export async function buildSession(auth: AuthResponse): Promise<SessionState> {
     throw new Error(auth.message || "Authentication response did not include a usable session.");
   }
 
-  const profile = await api.me(auth.accessToken);
+  const profile = auth.profile ?? (await api.me(auth.accessToken));
   return {
     accessToken: auth.accessToken,
     apiKey: auth.apiKey,

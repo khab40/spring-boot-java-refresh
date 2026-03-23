@@ -5,6 +5,7 @@ import com.example.springbootjavarefresh.dto.AuthResponse;
 import com.example.springbootjavarefresh.dto.CreateUserRequest;
 import com.example.springbootjavarefresh.dto.EmailVerificationResponse;
 import com.example.springbootjavarefresh.dto.MessageResponse;
+import com.example.springbootjavarefresh.dto.UserProfileResponse;
 import com.example.springbootjavarefresh.entity.AuthProvider;
 import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.security.JwtService;
@@ -45,7 +46,8 @@ public class AuthService {
                 null,
                 null,
                 false,
-                "Registration successful. Check your email for the verification link."
+                "Registration successful. Check your email for the verification link.",
+                UserProfileResponse.fromUser(user)
         );
     }
 
@@ -53,7 +55,8 @@ public class AuthService {
         User user = userService.getUserByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid email or password."));
 
-        if (user.getAuthProvider() == AuthProvider.GOOGLE) {
+        if (user.getAuthProvider() == AuthProvider.GOOGLE
+                && (user.getPasswordHash() == null || user.getPasswordHash().isBlank())) {
             throw new IllegalStateException("This account uses Google sign-in. Continue with Google.");
         }
 
@@ -74,7 +77,8 @@ public class AuthService {
                 "Bearer",
                 apiKey,
                 true,
-                "Signed in successfully."
+                "Signed in successfully.",
+                UserProfileResponse.fromUser(user)
         );
     }
 
@@ -128,7 +132,8 @@ public class AuthService {
                 "Bearer",
                 apiKey,
                 true,
-                "Signed in with Google successfully."
+                "Signed in with Google successfully.",
+                UserProfileResponse.fromUser(user)
         );
     }
 }

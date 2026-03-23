@@ -2,7 +2,13 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+elif [[ -n "${ZSH_VERSION:-}" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "$(eval 'printf %s "${(%):-%x}"')")" && pwd)"
+else
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MDL_RUNTIME_DIR="${TMPDIR:-/tmp}/market-data-lake"
 STRIPE_LISTENER_PID_FILE="${MDL_RUNTIME_DIR}/stripe-listen.pid"
@@ -65,16 +71,25 @@ prepare_docker_host
 
 mkdir -p "${MDL_RUNTIME_DIR}"
 
-if docker compose version >/dev/null 2>&1; then
-  DOCKER_COMPOSE_CMD=(docker compose)
-elif command -v docker-compose >/dev/null 2>&1; then
-  DOCKER_COMPOSE_CMD=(docker-compose)
-else
-  echo "Docker Compose is not installed." >&2
-  exit 1
-fi
+DOCKER_COMPOSE_CMD=()
+
+init_docker_compose() {
+  if [[ ${#DOCKER_COMPOSE_CMD[@]} -gt 0 ]]; then
+    return
+  fi
+
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD=(docker compose)
+  elif command -v docker-compose >/dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD=(docker-compose)
+  else
+    echo "Docker Compose is not installed." >&2
+    exit 1
+  fi
+}
 
 run_compose() {
+  init_docker_compose
   (
     cd "${REPO_ROOT}"
     "${DOCKER_COMPOSE_CMD[@]}" "$@"

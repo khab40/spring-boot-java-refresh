@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: market-data-lake-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: SERVER_PORT
+        value: 8080
+      - key: MARKETDATA_STUB_ENABLED
+        value: "true"
+      - key: SPRING_JPA_HIBERNATE_DDL_AUTO
+        value: update
+      - key: APP_FRONTEND_ORIGIN
+        sync: false
+      - key: APP_AUTH_OAUTH2_SUCCESS_URL
+        sync: false
+      - key: APP_AUTH_OAUTH2_FAILURE_URL
+        sync: false
+      - key: APP_AUTH_GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SECURITY_JWT_SECRET
+        sync: false
+      - key: STRIPE_API_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: APP_FSS_ENDPOINT
+        sync: false
+      - key: APP_FSS_PUBLIC_ENDPOINT
+        sync: false
+      - key: APP_FSS_ACCESS_KEY
+        sync: false
+      - key: APP_FSS_SECRET_KEY
+        sync: false
+      - key: APP_FSS_BUCKET
+        sync: false
+
+  - type: web
+    name: market-data-lake-ui
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: /backend
+      - key: NEXT_PUBLIC_AUTH_BASE_URL
+        sync: false
+      - key: INTERNAL_API_BASE_URL
+        sync: false

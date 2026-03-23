@@ -2,11 +2,10 @@ package com.example.springbootjavarefresh.controller;
 
 import com.example.springbootjavarefresh.dto.AdminUpdateUserRequest;
 import com.example.springbootjavarefresh.dto.CreateUserRequest;
+import com.example.springbootjavarefresh.dto.PaymentTransactionResponse;
 import com.example.springbootjavarefresh.dto.UpdateUserRoleRequest;
+import com.example.springbootjavarefresh.dto.UserEntitlementResponse;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
-import com.example.springbootjavarefresh.entity.PaymentTransaction;
-import com.example.springbootjavarefresh.entity.User;
-import com.example.springbootjavarefresh.entity.UserEntitlement;
 import com.example.springbootjavarefresh.service.PaymentService;
 import com.example.springbootjavarefresh.service.UserEntitlementService;
 import com.example.springbootjavarefresh.service.UserService;
@@ -75,14 +74,18 @@ public class UserController {
     @GetMapping("/{id}/entitlements")
     @Operation(summary = "Get a user's entitlements")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<UserEntitlement>> getEntitlements(@PathVariable Long id) {
-        return ResponseEntity.ok(userEntitlementService.getEntitlementsByUserId(id));
+    public ResponseEntity<List<UserEntitlementResponse>> getEntitlements(@PathVariable Long id) {
+        return ResponseEntity.ok(userEntitlementService.getEntitlementsByUserId(id).stream()
+                .map(UserEntitlementResponse::fromEntitlement)
+                .toList());
     }
 
     @GetMapping("/{id}/payments")
     @Operation(summary = "Get a user's persisted payment history")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<PaymentTransaction>> getPayments(@PathVariable Long id) {
-        return ResponseEntity.ok(paymentService.getTransactionsByUserId(id));
+    public ResponseEntity<List<PaymentTransactionResponse>> getPayments(@PathVariable Long id) {
+        return ResponseEntity.ok(paymentService.getTransactionsByUserId(id).stream()
+                .map(PaymentTransactionResponse::fromTransaction)
+                .toList());
     }
 }

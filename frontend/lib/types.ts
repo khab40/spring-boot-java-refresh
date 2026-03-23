@@ -24,6 +24,7 @@ export type AuthResponse = {
   apiKey?: string | null;
   emailVerified: boolean;
   message: string;
+  profile?: UserProfile | null;
 };
 
 export type DataProduct = {

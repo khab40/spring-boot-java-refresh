@@ -2,10 +2,17 @@ package com.example.springbootjavarefresh.controller;
 
 import com.example.springbootjavarefresh.dto.AuthResponse;
 import com.example.springbootjavarefresh.dto.EmailVerificationResponse;
+import com.example.springbootjavarefresh.dto.PaymentTransactionResponse;
 import com.example.springbootjavarefresh.dto.UpdateUserProfileRequest;
+import com.example.springbootjavarefresh.dto.UserEntitlementResponse;
 import com.example.springbootjavarefresh.dto.UserProfileResponse;
+import com.example.springbootjavarefresh.entity.AuthProvider;
+import com.example.springbootjavarefresh.entity.BillingInterval;
+import com.example.springbootjavarefresh.entity.DataProduct;
+import com.example.springbootjavarefresh.entity.UserRole;
 import com.example.springbootjavarefresh.entity.PaymentTransaction;
 import com.example.springbootjavarefresh.entity.PaymentTransactionStatus;
+import com.example.springbootjavarefresh.entity.ProductAccessType;
 import com.example.springbootjavarefresh.entity.User;
 import com.example.springbootjavarefresh.entity.UserEntitlement;
 import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
@@ -22,9 +29,13 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockHttpSession;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,6 +44,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AuthController.class)
@@ -66,7 +78,7 @@ class AuthControllerTest {
     @Test
     void shouldRegisterUser() throws Exception {
         when(authService.register(any()))
-                .thenReturn(new AuthResponse(1L, "auth@example.com", null, null, null, false, "Check your email"));
+                .thenReturn(new AuthResponse(1L, "auth@example.com", null, null, null, false, "Check your email", null));
 
         mockMvc.perform(post("/api/auth/register")
                         .with(csrf())
@@ -87,7 +99,29 @@ class AuthControllerTest {
     @Test
     void shouldLoginUser() throws Exception {
         when(authService.login(any()))
-                .thenReturn(new AuthResponse(1L, "auth@example.com", "jwt-token", "Bearer", "mdr_key", true, "Signed in successfully."));
+                .thenReturn(new AuthResponse(
+                        1L,
+                        "auth@example.com",
+                        "jwt-token",
+                        "Bearer",
+                        "mdr_key",
+                        true,
+                        "Signed in successfully.",
+                        new UserProfileResponse(
+                                1L,
+                                "auth@example.com",
+                                "Auth",
+                                "User",
+                                null,
+                                null,
+                                null,
+                                UserRole.USER,
+                                AuthProvider.LOCAL,
+                                true,
+                                null,
+                                null
+                        )
+                ));
 
         mockMvc.perform(post("/api/auth/login")
                         .with(csrf())
@@ -100,7 +134,8 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.accessToken").value("jwt-token"));
+                .andExpect(jsonPath("$.accessToken").value("jwt-token"))
+                .andExpect(jsonPath("$.profile.email").value("auth@example.com"));
     }
 
     @Test
@@ -121,6 +156,31 @@ class AuthControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals("auth@example.com", response.getBody().email());
+    }
+
+    @Test
+    void shouldReturnCurrentUserProfileForOAuth2Principal() {
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("google@example.com");
+        user.setFirstName("Go");
+        user.setLastName("Ogler");
+        when(userService.getUserByEmail("google@example.com")).thenReturn(Optional.of(user));
+
+        DefaultOAuth2User oauth2User = new DefaultOAuth2User(
+                List.of(new OAuth2UserAuthority(Map.of("email", "google@example.com"))),
+                Map.of("email", "google@example.com"),
+                "email"
+        );
+
+        ResponseEntity<UserProfileResponse> response = authController.me(new UsernamePasswordAuthenticationToken(
+                oauth2User,
+                null,
+                oauth2User.getAuthorities()
+        ));
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals("google@example.com", response.getBody().email());
     }
 
     @Test
@@ -201,11 +261,20 @@ class AuthControllerTest {
         UserEntitlement entitlement = new UserEntitlement();
         entitlement.setId(99L);
         entitlement.setUser(userPrincipal);
+        DataProduct product = new DataProduct();
+        product.setId(77L);
+        product.setCode("L1");
+        product.setName("Level 1");
+        product.setCurrency("usd");
+        product.setPrice(new java.math.BigDecimal("10.00"));
+        product.setAccessType(ProductAccessType.ONE_TIME_PURCHASE);
+        product.setBillingInterval(BillingInterval.ONE_TIME);
+        entitlement.setProduct(product);
 
         when(userService.getUserByEmail("auth@example.com")).thenReturn(Optional.of(userPrincipal));
         when(userEntitlementService.getEntitlementsByUserId(1L)).thenReturn(List.of(entitlement));
 
-        ResponseEntity<List<UserEntitlement>> response = authController.myEntitlements(new UsernamePasswordAuthenticationToken(
+        ResponseEntity<List<UserEntitlementResponse>> response = authController.myEntitlements(new UsernamePasswordAuthenticationToken(
                 userPrincipal,
                 null,
                 userPrincipal.getAuthorities()
@@ -213,7 +282,7 @@ class AuthControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals(1, response.getBody().size());
-        assertEquals(99L, response.getBody().get(0).getId());
+        assertEquals(99L, response.getBody().get(0).id());
     }
 
     @Test
@@ -228,10 +297,21 @@ class AuthControllerTest {
         PaymentTransaction transaction = new PaymentTransaction();
         transaction.setId(42L);
         transaction.setStatus(PaymentTransactionStatus.CHECKOUT_CREATED);
+        transaction.setCurrency("usd");
+        transaction.setAmount(new java.math.BigDecimal("10.00"));
+        DataProduct product = new DataProduct();
+        product.setId(88L);
+        product.setCode("L2");
+        product.setName("Level 2");
+        product.setCurrency("usd");
+        product.setPrice(new java.math.BigDecimal("10.00"));
+        product.setAccessType(ProductAccessType.ONE_TIME_PURCHASE);
+        product.setBillingInterval(BillingInterval.ONE_TIME);
+        transaction.setProduct(product);
 
         when(paymentService.getTransactionsByUserId(1L)).thenReturn(List.of(transaction));
 
-        ResponseEntity<List<PaymentTransaction>> response = authController.myPayments(new UsernamePasswordAuthenticationToken(
+        ResponseEntity<List<PaymentTransactionResponse>> response = authController.myPayments(new UsernamePasswordAuthenticationToken(
                 userPrincipal,
                 null,
                 userPrincipal.getAuthorities()
@@ -239,13 +319,16 @@ class AuthControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals(1, response.getBody().size());
-        assertEquals(42L, response.getBody().get(0).getId());
+        assertEquals(42L, response.getBody().get(0).id());
     }
 
     @Test
     void shouldLogoutWithNoContent() throws Exception {
+        MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/logout")
-                        .with(csrf()))
-                .andExpect(status().isNoContent());
+                        .with(csrf())
+                        .session(session))
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().maxAge("JSESSIONID", 0));
     }
 }

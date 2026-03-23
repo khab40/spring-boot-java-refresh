@@ -7,5 +7,6 @@ public record AuthResponse(
         String tokenType,
         String apiKey,
         boolean emailVerified,
-        String message) {
+        String message,
+        UserProfileResponse profile) {
 }

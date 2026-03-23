@@ -172,11 +172,21 @@ class UserControllerTest {
     void shouldReturnUserEntitlements() throws Exception {
         UserEntitlement entitlement = new UserEntitlement();
         entitlement.setId(30L);
+        com.example.springbootjavarefresh.entity.DataProduct product = new com.example.springbootjavarefresh.entity.DataProduct();
+        product.setId(5L);
+        product.setCode("PX");
+        product.setName("Product X");
+        product.setCurrency("usd");
+        product.setPrice(new java.math.BigDecimal("1.00"));
+        product.setAccessType(com.example.springbootjavarefresh.entity.ProductAccessType.ONE_TIME_PURCHASE);
+        product.setBillingInterval(com.example.springbootjavarefresh.entity.BillingInterval.ONE_TIME);
+        entitlement.setProduct(product);
         when(userEntitlementService.getEntitlementsByUserId(1L)).thenReturn(List.of(entitlement));
 
         mockMvc.perform(get("/api/users/1/entitlements"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(30L));
+                .andExpect(jsonPath("$[0].id").value(30L))
+                .andExpect(jsonPath("$[0].product.code").value("PX"));
     }
 
     @Test
@@ -187,11 +197,21 @@ class UserControllerTest {
         payment.setCurrency("usd");
         payment.setStatus(com.example.springbootjavarefresh.entity.PaymentTransactionStatus.SUCCEEDED);
         payment.setAmount(new java.math.BigDecimal("99.99"));
+        com.example.springbootjavarefresh.entity.DataProduct product = new com.example.springbootjavarefresh.entity.DataProduct();
+        product.setId(6L);
+        product.setCode("PY");
+        product.setName("Product Y");
+        product.setCurrency("usd");
+        product.setPrice(new java.math.BigDecimal("99.99"));
+        product.setAccessType(com.example.springbootjavarefresh.entity.ProductAccessType.ONE_TIME_PURCHASE);
+        product.setBillingInterval(com.example.springbootjavarefresh.entity.BillingInterval.ONE_TIME);
+        payment.setProduct(product);
         when(paymentService.getTransactionsByUserId(1L)).thenReturn(List.of(payment));
 
         mockMvc.perform(get("/api/users/1/payments"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(40L))
-                .andExpect(jsonPath("$[0].status").value("SUCCEEDED"));
+                .andExpect(jsonPath("$[0].status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$[0].product.code").value("PY"));
     }
 }

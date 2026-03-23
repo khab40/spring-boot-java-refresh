@@ -233,6 +233,8 @@ const defaultCreateUserForm: AdminCreateUserForm = {
   phoneNumber: ""
 };
 
+const privateHydrationTimeoutMs = 8000;
+
 export function MarketDataLakeShell() {
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [authForm, setAuthForm] = useState<AuthForm>(defaultAuthForm);
@@ -262,6 +264,7 @@ export function MarketDataLakeShell() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [privateDataLoaded, setPrivateDataLoaded] = useState(false);
+  const [sessionBootstrapComplete, setSessionBootstrapComplete] = useState(false);
   const [catalogItemForm, setCatalogItemForm] = useState<AdminCatalogItemForm>(defaultCatalogItemForm);
   const [productForm, setProductForm] = useState<AdminProductForm>(defaultProductForm);
   const [editingProductId, setEditingProductId] = useState("0");
@@ -272,6 +275,21 @@ export function MarketDataLakeShell() {
   const privateRequestVersion = useRef(0);
   const passwordTooShort = authForm.password.length > 0 && authForm.password.length < 8;
   const profile: UserProfile | null | undefined = session?.profile;
+  const hasSession = Boolean(session?.accessToken);
+
+  function clearClientSession() {
+    privateRequestVersion.current += 1;
+    setSession(null);
+    setEntitlements([]);
+    setPayments([]);
+    setOtdDeliveries([]);
+    setDashboard(null);
+    setAdminUsers([]);
+    setSelectedAdminUserPayments([]);
+    setSelectedAdminUserEntitlements([]);
+    setPrivateDataLoaded(false);
+    saveSession(null);
+  }
 
   useEffect(() => {
     const stored = loadSession();
@@ -296,6 +314,8 @@ export function MarketDataLakeShell() {
         setMessage("Stripe checkout was cancelled.");
       }
     }
+
+    setSessionBootstrapComplete(true);
   }, []);
 
   useEffect(() => {
@@ -303,25 +323,20 @@ export function MarketDataLakeShell() {
   }, []);
 
   useEffect(() => {
-    const requestVersion = ++privateRequestVersion.current;
-
-    if (!session?.accessToken) {
-      setEntitlements([]);
-      setPayments([]);
-      setOtdDeliveries([]);
-      setDashboard(null);
-      setAdminUsers([]);
-      setSelectedAdminUserPayments([]);
-      setSelectedAdminUserEntitlements([]);
-      setPrivateDataLoaded(false);
-      saveSession(null);
+    if (!sessionBootstrapComplete) {
       return;
     }
 
+    if (!session?.accessToken) {
+      clearClientSession();
+      return;
+    }
+
+    const requestVersion = ++privateRequestVersion.current;
     saveSession(session);
     setPrivateDataLoaded(false);
     void refreshPrivateData(session, requestVersion);
-  }, [session]);
+  }, [session?.accessToken, session?.userId, sessionBootstrapComplete]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !session?.accessToken) {
@@ -556,30 +571,29 @@ export function MarketDataLakeShell() {
 
   async function refreshPrivateData(nextSession: SessionState, requestVersion: number) {
     try {
-      const profile = await api.me(nextSession.accessToken);
+      const profile =
+        nextSession.profile ??
+        (await withTimeout(api.me(nextSession.accessToken), privateHydrationTimeoutMs, "Session restore timed out."));
       if (privateRequestVersion.current !== requestVersion) {
         return;
       }
 
-      const updatedSession = { ...nextSession, profile };
-      setSession(updatedSession);
+      if (!nextSession.profile) {
+        const updatedSession = { ...nextSession, profile };
+        setSession(updatedSession);
+        saveSession(updatedSession);
+      }
 
-      const userEntitlements = await api.myEntitlements(nextSession.accessToken);
+      const [userEntitlements, userPayments, deliveries] = await Promise.all([
+        withTimeout(api.myEntitlements(nextSession.accessToken), privateHydrationTimeoutMs, "Entitlements load timed out."),
+        withTimeout(api.myPayments(nextSession.accessToken), privateHydrationTimeoutMs, "Payments load timed out."),
+        withTimeout(api.myOtdDeliveries(nextSession.accessToken), privateHydrationTimeoutMs, "Deliveries load timed out.")
+      ]);
       if (privateRequestVersion.current !== requestVersion) {
         return;
       }
       setEntitlements(userEntitlements);
-
-      const userPayments = await api.myPayments(nextSession.accessToken);
-      if (privateRequestVersion.current !== requestVersion) {
-        return;
-      }
       setPayments(userPayments);
-
-      const deliveries = await api.myOtdDeliveries(nextSession.accessToken);
-      if (privateRequestVersion.current !== requestVersion) {
-        return;
-      }
       setOtdDeliveries(deliveries);
 
       if (profile.role === "ADMIN") {
@@ -604,19 +618,15 @@ export function MarketDataLakeShell() {
       setPrivateDataLoaded(true);
     } catch (requestError) {
       if (isAuthError(requestError)) {
-        privateRequestVersion.current += 1;
-        setSession(null);
-        setEntitlements([]);
-        setPayments([]);
-        setOtdDeliveries([]);
-        setDashboard(null);
-        setAdminUsers([]);
-        setSelectedAdminUserPayments([]);
-        setSelectedAdminUserEntitlements([]);
-        setPrivateDataLoaded(false);
-        saveSession(null);
+        clearClientSession();
         setError("");
         setMessage("Session expired. Sign in again to load persisted purchases and entitlements.");
+        return;
+      }
+      if (!nextSession.profile) {
+        clearClientSession();
+        setError("");
+        setMessage("Stored session could not be restored. Sign in again to load persisted purchases and entitlements.");
         return;
       }
       setPrivateDataLoaded(true);
@@ -636,6 +646,10 @@ export function MarketDataLakeShell() {
     setMessage("");
 
     try {
+      if (authMode === "signin") {
+        clearClientSession();
+      }
+
       const payload =
         authMode === "signup"
           ? authForm
@@ -658,6 +672,9 @@ export function MarketDataLakeShell() {
         setAuthMode("signin");
       }
     } catch (requestError) {
+      if (authMode === "signin") {
+        clearClientSession();
+      }
       setError(getErrorMessage(requestError));
     } finally {
       setBusy(false);
@@ -665,8 +682,6 @@ export function MarketDataLakeShell() {
   }
 
   async function handleLogout() {
-    privateRequestVersion.current += 1;
-
     if (session?.accessToken) {
       try {
         await api.logout(session.accessToken);
@@ -675,10 +690,7 @@ export function MarketDataLakeShell() {
       }
     }
 
-    setSession(null);
-    setEntitlements([]);
-    setPayments([]);
-    setDashboard(null);
+    clearClientSession();
     setCheckoutStatus("");
     setLastTransaction(null);
     setMessage("Signed out.");
@@ -1133,17 +1145,21 @@ export function MarketDataLakeShell() {
         <div className="terminal-header-side">
           <button className="user-chip" onClick={() => setIsUserDrawerOpen(true)}>
             <span className="user-chip-label">User</span>
-            <strong>{profile ? `${profile.firstName} ${profile.lastName}` : "Sign in"}</strong>
+            <strong>
+              {profile
+                ? `${profile.firstName} ${profile.lastName}`
+                : hasSession
+                  ? session?.email ?? "Loading user"
+                  : "Sign in"}
+            </strong>
           </button>
           <div className="terminal-user-meta">
-            {profile ? `${profile.email} / ${profile.authProvider}` : "Authentication required for access and payments"}
+            {profile
+              ? `${profile.email} / ${profile.authProvider}`
+              : hasSession
+                ? "Authenticated session detected. Loading profile and persisted access..."
+                : "Authentication required for access and payments"}
           </div>
-          {session?.apiKey ? (
-            <div className="token-block compact-token">
-              API key
-              <code>{session.apiKey}</code>
-            </div>
-          ) : null}
         </div>
       </section>
 
@@ -1176,18 +1192,20 @@ export function MarketDataLakeShell() {
             <div className="section-header">
               <div>
                 <div className="eyebrow">User</div>
-                <h2>{profile ? "Identity and session" : "Sign in or create account"}</h2>
+                <h2>{profile ? "Identity and session" : hasSession ? "Completing sign-in" : "Sign in or create account"}</h2>
                 <div className="panel-intro">
                   {profile
                     ? "Update user details, inspect sign-in state, or sign out."
-                    : "Keep auth, verification, and Google sign-in out of the main storefront flow."}
+                    : hasSession
+                      ? "Persisted session found. Waiting for identity and entitlement hydration."
+                      : "Keep auth, verification, and Google sign-in out of the main storefront flow."}
                 </div>
               </div>
               <button className="ghost-button" onClick={() => setIsUserDrawerOpen(false)}>
                 Close
               </button>
             </div>
-            {!profile ? (
+            {!hasSession ? (
               <div className="form-grid">
                 <div className="pill-row">
                   <button className={authMode === "signin" ? "button" : "ghost-button"} onClick={() => setAuthMode("signin")}>
@@ -1231,6 +1249,21 @@ export function MarketDataLakeShell() {
                     disabled={busy}
                   >
                     Continue with Google
+                  </button>
+                </div>
+              </div>
+            ) : !profile ? (
+              <div className="form-grid">
+                <div className="card compact-card">
+                  <div className="meta-list">
+                    <span>{session?.email || "Authenticated user"}</span>
+                    <span>Session established</span>
+                    <span>Loading profile, entitlements, and purchase history...</span>
+                  </div>
+                </div>
+                <div className="actions">
+                  <button className="danger-button" onClick={handleLogout}>
+                    Sign out
                   </button>
                 </div>
               </div>
@@ -1281,7 +1314,7 @@ export function MarketDataLakeShell() {
               <div className="panel-intro">Active access rights are merged by offer, so repeat purchases do not render as duplicates.</div>
             </div>
           </div>
-          {profile ? (
+          {hasSession ? (
             !privateDataLoaded ? (
               <div className="helper">Loading persisted entitlements and quota usage...</div>
             ) : accessSummaries.length > 0 ? (
@@ -1650,9 +1683,9 @@ export function MarketDataLakeShell() {
             <div className="panel-intro">Raw checkout history stays separate from active entitlements and uses the same compact list-detail pattern as the catalog.</div>
           </div>
         </div>
-        {profile ? (
-          !privateDataLoaded ? (
-            <div className="helper">Loading persisted purchase history...</div>
+          {hasSession ? (
+            !privateDataLoaded ? (
+              <div className="helper">Loading persisted purchase history...</div>
           ) : payments.length > 0 ? (
             <div className="split-panel">
               <div className="catalog-list compact-list">
@@ -2229,6 +2262,25 @@ function getErrorMessage(error: unknown) {
 
 function isAuthError(error: unknown) {
   return typeof error === "object" && error !== null && "status" in error && ((((error as { status?: number }).status) === 401) || (((error as { status?: number }).status) === 403));
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
 async function withRetries<T>(operation: () => Promise<T>, retries: number, retryDelayMs: number) {
