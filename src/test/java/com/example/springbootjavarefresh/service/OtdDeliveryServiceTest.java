@@ -95,7 +95,8 @@ class OtdDeliveryServiceTest {
 
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
         when(dataProductRepository.findById(11L)).thenReturn(Optional.of(product));
-        when(userEntitlementRepository.findByUserIdAndProductId(7L, 11L)).thenReturn(Optional.of(entitlement));
+        when(userEntitlementRepository.findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(7L, 11L, EntitlementStatus.ACTIVE))
+                .thenReturn(Optional.of(entitlement));
         when(marketDataService.getAllMarketData()).thenReturn(List.of(row));
         when(otdSqlQueryEngine.execute(any(), any())).thenReturn(List.of(row));
         when(parquetExportService.export(any(), any(), any(Integer.class))).thenReturn(List.of(export));
@@ -144,7 +145,7 @@ class OtdDeliveryServiceTest {
         );
 
         assertEquals("OTD delivery is supported only for one-time purchase offers.", exception.getMessage());
-        verify(userEntitlementRepository, never()).findByUserIdAndProductId(any(), any());
+        verify(userEntitlementRepository, never()).findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(any(), any(), any());
     }
 
     @Test
@@ -156,7 +157,8 @@ class OtdDeliveryServiceTest {
 
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
         when(dataProductRepository.findById(11L)).thenReturn(Optional.of(product));
-        when(userEntitlementRepository.findByUserIdAndProductId(7L, 11L)).thenReturn(Optional.of(entitlement));
+        when(userEntitlementRepository.findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(7L, 11L, EntitlementStatus.ACTIVE))
+                .thenReturn(Optional.of(entitlement));
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -179,7 +181,8 @@ class OtdDeliveryServiceTest {
 
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
         when(dataProductRepository.findById(11L)).thenReturn(Optional.of(product));
-        when(userEntitlementRepository.findByUserIdAndProductId(7L, 11L)).thenReturn(Optional.of(entitlement));
+        when(userEntitlementRepository.findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(7L, 11L, EntitlementStatus.ACTIVE))
+                .thenReturn(Optional.of(entitlement));
         when(marketDataService.getAllMarketData()).thenReturn(List.of(row));
         when(otdSqlQueryEngine.execute(any(), any())).thenReturn(List.of(row));
         when(parquetExportService.export(any(), any(), any(Integer.class))).thenReturn(List.of(export));
@@ -216,7 +219,8 @@ class OtdDeliveryServiceTest {
         delivery.setCreatedAt(LocalDateTime.parse("2026-03-20T12:00:00"));
 
         when(dataDeliveryRepository.findAllByUserIdOrderByCreatedAtDesc(7L)).thenReturn(List.of(delivery));
-        when(userEntitlementRepository.findByUserIdAndProductId(7L, 11L)).thenReturn(Optional.of(entitlement));
+        when(userEntitlementRepository.findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(7L, 11L, EntitlementStatus.ACTIVE))
+                .thenReturn(Optional.of(entitlement));
         when(objectStorageService.signGetUrl("otd/7/2026/03/20/120000/aapl.parquet")).thenReturn(
                 new ObjectStorageService.SignedObjectUrl("http://localhost:9000/signed/aapl.parquet", LocalDateTime.parse("2026-03-21T12:00:00"))
         );

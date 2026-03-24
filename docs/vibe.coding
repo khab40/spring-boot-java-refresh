@@ -3,6 +3,8 @@
 This log tracks direct non-merge commits from the last two weeks for this project.
 For older entries where the original chat prompt is not available in the current thread, the "key prompt" is reconstructed from the commit scope and subject.
 
+Maintenance rule: update this file whenever meaningful project changes are completed and committed.
+
 | Date-Time | Key Prompt | Commit | Summary |
 | --- | --- | --- | --- |
 | 2026-03-15 18:07:21 +0400 | Build the initial Spring Boot market data subscription API. | `36cf67f` | <ul><li>Completed the initial backend API foundation for market data subscription flows.</li><li>Established the first workable service/controller/repository structure for the project.</li></ul> |
@@ -35,4 +37,3 @@ For older entries where the original chat prompt is not available in the current
 | 2026-03-22 09:09:31 +0400 | Fix the normal-user UI so persisted purchases and entitlements are restored correctly. | `eca8678` | <ul><li>Fixed stale/expired session handling in the normal-user UI.</li><li>Restored persisted entitlements and purchase history visibility after sign-in.</li><li>Preserved HTTP status details in frontend API errors for correct auth handling.</li></ul> |
 | 2026-03-22 09:21:04 +0400 | Fix Google OAuth `redirect_uri_mismatch` by pinning the callback URI. | `088f860` | <ul><li>Pinned the Google OAuth redirect URI to the configured localhost callback.</li><li>Updated runtime config and README documentation for the registered callback URL.</li></ul> |
 | 2026-03-23 18:48:47 +0400 | Fix broken normal login, Google auth recovery, persisted entitlement hydration, and add faster local host-run workflows. | `2f473cc` | <ul><li>Stabilized auth recovery for both password and Google login flows.</li><li>Replaced raw JPA auth responses with DTOs for persisted entitlements and payments.</li><li>Hardened JWT parsing and stale-session cleanup to avoid `500` auth failures.</li><li>Added and documented local host-run scripts plus Render deployment scaffolding.</li><li>Removed API key exposure from the main page header and kept it in the user drawer.</li></ul> |
-

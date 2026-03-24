@@ -158,7 +158,8 @@ class ApiKeysServiceTest {
 
         when(apiKeyRepository.findByKeyHash(hashForTest("raw-key"))).thenReturn(Optional.of(apiKey));
         when(dataProductRepository.findById(12L)).thenReturn(Optional.of(product));
-        when(userEntitlementRepository.findByUserIdAndProductId(2L, 12L)).thenReturn(Optional.of(entitlement));
+        when(userEntitlementRepository.findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(2L, 12L, EntitlementStatus.ACTIVE))
+                .thenReturn(Optional.of(entitlement));
 
         ApiKeyUsageSummaryResponse summary = apiKeysService.recordUsage(request);
 
@@ -201,7 +202,8 @@ class ApiKeysServiceTest {
 
         when(apiKeyRepository.findByKeyHash(hashForTest("realtime-key"))).thenReturn(Optional.of(apiKey));
         when(dataProductRepository.findById(12L)).thenReturn(Optional.of(product));
-        when(userEntitlementRepository.findByUserIdAndProductId(2L, 12L)).thenReturn(Optional.of(entitlement));
+        when(userEntitlementRepository.findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(2L, 12L, EntitlementStatus.ACTIVE))
+                .thenReturn(Optional.of(entitlement));
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> apiKeysService.recordUsage(request));
         assertEquals("Realtime subscription limit exceeded for product REALTIME", exception.getMessage());

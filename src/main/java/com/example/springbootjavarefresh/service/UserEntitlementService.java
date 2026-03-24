@@ -40,7 +40,7 @@ public class UserEntitlementService {
 
     private UserEntitlement grantEntitlement(PaymentTransaction transaction, DataProduct product, int purchasedUnits) {
         UserEntitlement entitlement = userEntitlementRepository
-                .findByUserIdAndProductId(transaction.getUser().getId(), product.getId())
+                .findFirstByUserIdAndProductIdOrderByGrantedAtDescIdDesc(transaction.getUser().getId(), product.getId())
                 .orElseGet(UserEntitlement::new);
 
         entitlement.setUser(transaction.getUser());

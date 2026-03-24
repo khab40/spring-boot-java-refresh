@@ -43,7 +43,7 @@ class UserEntitlementServiceTest {
     @Test
     void shouldGrantMonthlyEntitlement() {
         PaymentTransaction transaction = buildTransaction(BillingInterval.MONTHLY);
-        when(userEntitlementRepository.findByUserIdAndProductId(5L, 8L)).thenReturn(Optional.empty());
+        when(userEntitlementRepository.findFirstByUserIdAndProductIdOrderByGrantedAtDescIdDesc(5L, 8L)).thenReturn(Optional.empty());
         when(userEntitlementRepository.save(org.mockito.ArgumentMatchers.any(UserEntitlement.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -70,7 +70,7 @@ class UserEntitlementServiceTest {
 
         UserEntitlement existing = new UserEntitlement();
         existing.setId(91L);
-        when(userEntitlementRepository.findByUserIdAndProductId(5L, 8L)).thenReturn(Optional.of(existing));
+        when(userEntitlementRepository.findFirstByUserIdAndProductIdOrderByGrantedAtDescIdDesc(5L, 8L)).thenReturn(Optional.of(existing));
         when(userEntitlementRepository.save(org.mockito.ArgumentMatchers.any(UserEntitlement.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 

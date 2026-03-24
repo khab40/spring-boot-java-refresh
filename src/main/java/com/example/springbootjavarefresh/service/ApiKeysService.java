@@ -150,11 +150,9 @@ public class ApiKeysService {
     }
 
     private UserEntitlement resolveActiveEntitlement(Long userId, Long productId) {
-        UserEntitlement entitlement = userEntitlementRepository.findByUserIdAndProductId(userId, productId)
+        UserEntitlement entitlement = userEntitlementRepository
+                .findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(userId, productId, EntitlementStatus.ACTIVE)
                 .orElseThrow(() -> new IllegalArgumentException("No entitlement found for user " + userId + " and product " + productId));
-        if (entitlement.getStatus() != EntitlementStatus.ACTIVE) {
-            throw new IllegalArgumentException("Entitlement is not active");
-        }
         if (entitlement.getExpiresAt() != null && entitlement.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Entitlement has expired");
         }

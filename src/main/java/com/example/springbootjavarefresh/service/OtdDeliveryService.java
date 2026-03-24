@@ -118,11 +118,9 @@ public class OtdDeliveryService {
     }
 
     private UserEntitlement resolveActiveEntitlement(Long userId, Long productId) {
-        UserEntitlement entitlement = userEntitlementRepository.findByUserIdAndProductId(userId, productId)
+        UserEntitlement entitlement = userEntitlementRepository
+                .findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(userId, productId, EntitlementStatus.ACTIVE)
                 .orElseThrow(() -> new IllegalArgumentException("No entitlement found for this offer. Complete checkout first."));
-        if (entitlement.getStatus() != EntitlementStatus.ACTIVE) {
-            throw new IllegalArgumentException("The selected entitlement is not active.");
-        }
         if (entitlement.getExpiresAt() != null && entitlement.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("The selected entitlement has expired.");
         }
@@ -141,7 +139,9 @@ public class OtdDeliveryService {
     }
 
     private BigDecimal resolveRemainingBatchMb(Long userId, DataProduct product) {
-        UserEntitlement entitlement = userEntitlementRepository.findByUserIdAndProductId(userId, product.getId()).orElse(null);
+        UserEntitlement entitlement = userEntitlementRepository
+                .findFirstByUserIdAndProductIdAndStatusOrderByGrantedAtDescIdDesc(userId, product.getId(), EntitlementStatus.ACTIVE)
+                .orElse(null);
         if (entitlement == null) {
             return null;
         }
