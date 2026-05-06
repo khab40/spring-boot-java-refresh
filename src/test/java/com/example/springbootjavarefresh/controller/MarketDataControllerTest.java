@@ -5,11 +5,8 @@ import com.example.springbootjavarefresh.entity.MarketDataType;
 import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
 import com.example.springbootjavarefresh.service.MarketDataService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -23,27 +20,35 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-@WebMvcTest(MarketDataController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@ExtendWith(MockitoExtension.class)
 class MarketDataControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+private MockMvc mockMvc;
+    @Mock
     private MarketDataService marketDataService;
-
-    @MockBean
+    @Mock
     private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @MockBean
+    @Mock
     private UserDetailsService userDetailsService;
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    @InjectMocks
+    private MarketDataController marketDataController;
 
-    @Autowired
-    private ObjectMapper objectMapper;
 
-    @Test
+
+    
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(marketDataController).build();
+    }
+
+@Test
     void testGetAllMarketData() throws Exception {
         MarketData data = new MarketData("AAPL", BigDecimal.valueOf(150.00), 1000L, MarketDataType.TICK);
         when(marketDataService.getAllMarketData()).thenReturn(Arrays.asList(data));

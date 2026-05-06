@@ -21,10 +21,6 @@ import com.example.springbootjavarefresh.service.PaymentService;
 import com.example.springbootjavarefresh.service.UserEntitlementService;
 import com.example.springbootjavarefresh.service.UserService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -46,36 +42,40 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-@WebMvcTest(AuthController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
+private MockMvc mockMvc;
+    @Mock
+    private AuthService authService;
+    @Mock
+    private PaymentService paymentService;
+    @Mock
+    private UserEntitlementService userEntitlementService;
+    @Mock
+    private UserService userService;
+    @Mock
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+    @Mock
+    private UserDetailsService userDetailsService;
+    @InjectMocks
     private AuthController authController;
 
-    @MockBean
-    private AuthService authService;
 
-    @MockBean
-    private PaymentService paymentService;
 
-    @MockBean
-    private UserEntitlementService userEntitlementService;
+    
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(authController).build();
+    }
 
-    @MockBean
-    private UserService userService;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @MockBean
-    private UserDetailsService userDetailsService;
-
-    @Test
+@Test
     void shouldRegisterUser() throws Exception {
         when(authService.register(any()))
                 .thenReturn(new AuthResponse(1L, "auth@example.com", null, null, null, false, "Check your email", null));
@@ -146,8 +146,6 @@ class AuthControllerTest {
         userPrincipal.setFirstName("Auth");
         userPrincipal.setLastName("User");
         userPrincipal.setPasswordHash("ignored");
-        when(userService.getUserByEmail("auth@example.com")).thenReturn(Optional.of(userPrincipal));
-
         ResponseEntity<UserProfileResponse> response = authController.me(new UsernamePasswordAuthenticationToken(
                 userPrincipal,
                 null,
@@ -271,7 +269,6 @@ class AuthControllerTest {
         product.setBillingInterval(BillingInterval.ONE_TIME);
         entitlement.setProduct(product);
 
-        when(userService.getUserByEmail("auth@example.com")).thenReturn(Optional.of(userPrincipal));
         when(userEntitlementService.getEntitlementsByUserId(1L)).thenReturn(List.of(entitlement));
 
         ResponseEntity<List<UserEntitlementResponse>> response = authController.myEntitlements(new UsernamePasswordAuthenticationToken(

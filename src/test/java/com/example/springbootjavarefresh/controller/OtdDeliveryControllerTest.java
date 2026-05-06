@@ -8,10 +8,6 @@ import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
 import com.example.springbootjavarefresh.service.OtdDeliveryService;
 import com.example.springbootjavarefresh.service.UserService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -32,32 +28,40 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-@WebMvcTest(OtdDeliveryController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@ExtendWith(MockitoExtension.class)
 class OtdDeliveryControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+private MockMvc mockMvc;
+    @Mock
     private OtdDeliveryService otdDeliveryService;
-
-    @MockBean
+    @Mock
     private UserService userService;
-
-    @MockBean
+    @Mock
     private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @MockBean
+    @Mock
     private UserDetailsService userDetailsService;
+    @InjectMocks
+    private OtdDeliveryController otdDeliveryController;
 
-    @Test
+
+
+    
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(otdDeliveryController).build();
+    }
+
+@Test
     void shouldCreateDeliveryForAuthenticatedUser() throws Exception {
         User user = userEntity();
         OtdDeliveryResponse response = response();
 
-        when(userService.getUserByEmail("delivery@example.com")).thenReturn(Optional.of(user));
         when(otdDeliveryService.createDelivery(eq(7L), any())).thenReturn(response);
 
         OtdDeliveryController controller = new OtdDeliveryController(otdDeliveryService, userService);
@@ -74,9 +78,6 @@ class OtdDeliveryControllerTest {
 
     @Test
     void shouldRejectInvalidCreateDeliveryRequest() throws Exception {
-        User user = userEntity();
-        when(userService.getUserByEmail("delivery@example.com")).thenReturn(Optional.of(user));
-
         mockMvc.perform(post("/api/market-data/otd-deliveries")
                         .with(user("delivery@example.com"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -92,7 +93,6 @@ class OtdDeliveryControllerTest {
     @Test
     void shouldListCurrentUsersDeliveries() throws Exception {
         User user = userEntity();
-        when(userService.getUserByEmail("delivery@example.com")).thenReturn(Optional.of(user));
         when(otdDeliveryService.getDeliveriesForUser(7L)).thenReturn(List.of(response()));
 
         OtdDeliveryController controller = new OtdDeliveryController(otdDeliveryService, userService);

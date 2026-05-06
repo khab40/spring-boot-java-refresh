@@ -5,12 +5,14 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.PositionOutputStream;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +59,7 @@ public class ParquetExportService {
         try {
             java.nio.file.Path tempFile = Files.createTempFile("market-data-otd-", ".parquet");
             Files.deleteIfExists(tempFile);
-            try (var writer = AvroParquetWriter.<GenericRecord>builder(new Path(tempFile.toUri()))
+            try (var writer = AvroParquetWriter.<GenericRecord>builder(new LocalOutputFile(tempFile))
                     .withSchema(SCHEMA)
                     .withConf(new Configuration())
                     .withCompressionCodec(CompressionCodecName.SNAPPY)
@@ -88,4 +90,72 @@ public class ParquetExportService {
     }
 
     public record ExportedParquetPart(String fileName, byte[] payload) {}
+
+    private record LocalOutputFile(java.nio.file.Path path) implements OutputFile {
+
+        @Override
+        public PositionOutputStream create(long blockSizeHint) throws IOException {
+            if (Files.exists(path)) {
+                throw new IOException("File already exists: " + path);
+            }
+            return new LocalPositionOutputStream(Files.newOutputStream(path));
+        }
+
+        @Override
+        public PositionOutputStream createOrOverwrite(long blockSizeHint) throws IOException {
+            return new LocalPositionOutputStream(Files.newOutputStream(path));
+        }
+
+        @Override
+        public boolean supportsBlockSize() {
+            return false;
+        }
+
+        @Override
+        public long defaultBlockSize() {
+            return 0;
+        }
+
+        @Override
+        public String getPath() {
+            return path.toString();
+        }
+    }
+
+    private static final class LocalPositionOutputStream extends PositionOutputStream {
+
+        private final OutputStream delegate;
+        private long position;
+
+        private LocalPositionOutputStream(OutputStream delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public long getPos() {
+            return position;
+        }
+
+        @Override
+        public void write(int value) throws IOException {
+            delegate.write(value);
+            position++;
+        }
+
+        @Override
+        public void write(byte[] bytes, int offset, int length) throws IOException {
+            delegate.write(bytes, offset, length);
+            position += length;
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+    }
 }

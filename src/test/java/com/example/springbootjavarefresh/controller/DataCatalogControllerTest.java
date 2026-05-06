@@ -10,10 +10,6 @@ import com.example.springbootjavarefresh.entity.ProductAccessType;
 import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
 import com.example.springbootjavarefresh.service.DataCatalogService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -31,24 +27,34 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-@WebMvcTest(DataCatalogController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@ExtendWith(MockitoExtension.class)
 class DataCatalogControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+private MockMvc mockMvc;
+    @Mock
     private DataCatalogService dataCatalogService;
-
-    @MockBean
+    @Mock
     private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @MockBean
+    @Mock
     private UserDetailsService userDetailsService;
+    @InjectMocks
+    private DataCatalogController dataCatalogController;
 
-    @Test
+
+
+    
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(dataCatalogController).build();
+    }
+
+@Test
     void shouldReturnCatalogItems() throws Exception {
         CatalogItemResponse item = new CatalogItemResponse(
                 5L,

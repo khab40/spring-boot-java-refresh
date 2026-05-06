@@ -8,10 +8,6 @@ import com.example.springbootjavarefresh.service.PaymentService;
 import com.example.springbootjavarefresh.service.UserEntitlementService;
 import com.example.springbootjavarefresh.service.UserService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -28,30 +24,38 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-@WebMvcTest(UserController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@ExtendWith(MockitoExtension.class)
 class UserControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+private MockMvc mockMvc;
+    @Mock
     private UserService userService;
-
-    @MockBean
+    @Mock
     private UserEntitlementService userEntitlementService;
-
-    @MockBean
+    @Mock
     private PaymentService paymentService;
-
-    @MockBean
+    @Mock
     private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @MockBean
+    @Mock
     private UserDetailsService userDetailsService;
+    @InjectMocks
+    private UserController userController;
 
-    @Test
+
+
+    
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(userController).build();
+    }
+
+@Test
     @WithMockUser(roles = "ADMIN")
     void shouldGetUserById() throws Exception {
         User user = new User();

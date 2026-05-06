@@ -4,10 +4,6 @@ import com.example.springbootjavarefresh.entity.Subscription;
 import com.example.springbootjavarefresh.security.JwtAuthenticationFilter;
 import com.example.springbootjavarefresh.service.SubscriptionService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -16,24 +12,34 @@ import java.util.Arrays;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-@WebMvcTest(SubscriptionController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@ExtendWith(MockitoExtension.class)
 class SubscriptionControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+private MockMvc mockMvc;
+    @Mock
     private SubscriptionService subscriptionService;
-
-    @MockBean
+    @Mock
     private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @MockBean
+    @Mock
     private UserDetailsService userDetailsService;
+    @InjectMocks
+    private SubscriptionController subscriptionController;
 
-    @Test
+
+
+    
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(subscriptionController).build();
+    }
+
+@Test
     void testGetAllSubscriptions() throws Exception {
         Subscription sub = new Subscription("user1", "AAPL");
         when(subscriptionService.getAllSubscriptions()).thenReturn(Arrays.asList(sub));
