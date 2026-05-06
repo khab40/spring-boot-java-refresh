@@ -1,5 +1,7 @@
 # Market Data Lake
 
+![Market Data Lake architecture banner](./img/market-data-lake-banner.png)
+
 Market Data Lake is a full-stack market data platform for catalog-driven data discovery, commerce, entitlements, API-key-based access, and operational monitoring. The application combines a Java 21 Spring Boot backend, a rich React and Next.js web UI, Stripe-based checkout flows, JWT and OAuth2 authentication, admin and audit capabilities, Prometheus and Grafana observability, and a lightweight Apache Airflow component reserved for future ingestion and lake orchestration workflows. Delta Lake is currently isolated from active runtime, development, and deployment while market-data delivery endpoints are served from a preview stub and transactional application state stays in H2.
 
 ## Features
